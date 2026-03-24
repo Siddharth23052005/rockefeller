@@ -1,19 +1,21 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Box, Typography, Grid, CircularProgress,
+  Box, Typography, Grid,
 } from "@mui/material";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, ResponsiveContainer,
   Tooltip as RechartTooltip,
 } from "recharts";
 import { MapContainer, TileLayer, Polygon, Tooltip } from "react-leaflet";
+import Skeleton from "react-loading-skeleton";
 
 import { useDashboardData } from "./useDashboardData";
 import { useAuth } from "../../context/AuthContext";
 import { acknowledgeAlert, resolveAlert } from "../../api/alerts";
 import { formatTimeAgo } from "../../utils/formatUtils";
 import { T } from "../../theme/tokens";
+import AnimatedNumber from "../../components/common/AnimatedNumber";
 
 // ── Design helpers ─────────────────────────────────────────────
 const glass = {
@@ -83,7 +85,9 @@ function KpiCard({ label, value, sub, accent, pulse, icon, trend }) {
 
       <Typography sx={{ fontSize: "2.75rem", fontWeight: 700,
         color: accent || T.onSurface, lineHeight: 1 }}>
-        {value ?? "—"}
+        {typeof value === "number"
+          ? <AnimatedNumber value={value} duration={1} />
+          : (value ?? "—")}
       </Typography>
 
       {sub && (
@@ -172,7 +176,8 @@ function DonutChart({ distribution }) {
       <Box sx={{ position: "relative", width: 160, height: 160 }}>
         <PieChart width={160} height={160}>
           <Pie data={data} cx={75} cy={75} innerRadius={52} outerRadius={72}
-            paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}>
+            paddingAngle={2} dataKey="value" startAngle={90} endAngle={-270}
+            isAnimationActive animationDuration={900} animationEasing="ease-out">
             {data.map((entry, i) => (
               <Cell key={i} fill={entry.color} stroke="none" />
             ))}
@@ -224,9 +229,12 @@ function TrendChart({ data }) {
               borderRadius: 4, fontSize: 11, color: T.onSurface }}
             cursor={{ fill: `${T.primary}10` }}
           />
-          <Bar dataKey="red"    fill={T.primaryCont} radius={[2,2,0,0]} />
-          <Bar dataKey="orange" fill={T.secondary}   radius={[2,2,0,0]} />
-          <Bar dataKey="yellow" fill="#ffeb3b"        radius={[2,2,0,0]} />
+          <Bar dataKey="red" fill={T.primaryCont} radius={[2, 2, 0, 0]}
+            isAnimationActive animationDuration={900} animationEasing="ease-out" />
+          <Bar dataKey="orange" fill={T.secondary} radius={[2, 2, 0, 0]}
+            isAnimationActive animationDuration={950} animationBegin={70} animationEasing="ease-out" />
+          <Bar dataKey="yellow" fill="#ffeb3b" radius={[2, 2, 0, 0]}
+            isAnimationActive animationDuration={1000} animationBegin={120} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </Box>
@@ -295,10 +303,42 @@ export default function DashboardPage() {
   const CENTER = [19.7515, 75.7139];
 
   if (loading) return (
-    <Box sx={{ display: "flex", justifyContent: "center", pt: 20 }}>
-      <CircularProgress sx={{ color: T.primary }} />
+    <Box>
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {[1, 2, 3, 4].map((i) => (
+          <Grid key={i} item xs={12} md={3}>
+            <Box sx={{ ...glass, p: 3 }}>
+              <Skeleton height={10} width="55%" style={{ marginBottom: 16 }} />
+              <Skeleton height={44} width="40%" style={{ marginBottom: 12 }} />
+              <Skeleton height={10} width="70%" />
+            </Box>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Grid container spacing={4} sx={{ mb: 4 }}>
+        <Grid item xs={12} lg={8}>
+          <Box sx={{ ...glass, p: 3, height: 500 }}>
+            <Skeleton height={12} width={220} style={{ marginBottom: 18 }} />
+            <Skeleton height={430} />
+          </Box>
+        </Grid>
+        <Grid item xs={12} lg={4}>
+          <Box sx={{ ...glass, p: 3, height: 500 }}>
+            <Skeleton height={12} width={160} style={{ marginBottom: 18 }} />
+            {[1, 2, 3, 4, 5].map((row) => (
+              <Box key={row} sx={{ display: "flex", justifyContent: "space-between", mb: 2.2 }}>
+                <Box sx={{ width: "68%" }}>
+                  <Skeleton height={12} style={{ marginBottom: 6 }} />
+                  <Skeleton height={10} width="75%" />
+                </Box>
+                <Skeleton height={22} width={56} borderRadius={999} />
+              </Box>
+            ))}
+          </Box>
+        </Grid>
+      </Grid>
     </Box>
-    
   );
 
   return (
@@ -309,7 +349,7 @@ export default function DashboardPage() {
         <Grid item xs={12} md={3}>
           <KpiCard
             label="Total Monitored Zones"
-            value={kpis.totalZones?.toLocaleString()}
+            value={kpis.totalZones ?? 0}
             trend="+2%"
             accent={T.tertiary}
             icon="trending_up"

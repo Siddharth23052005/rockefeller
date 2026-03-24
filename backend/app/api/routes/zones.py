@@ -5,6 +5,8 @@ from app.models.zone import Zone
 from app.schemas.zone import ZoneUpdateRequest
 from app.api.dependencies import get_current_user, require_officer
 from app.models.user import User
+from app.core.rule_engine import get_zone_features
+from app.services.ml_models import get_tomorrow_rainfall, predict_zone_risk
 
 router = APIRouter(prefix="/api/zones", tags=["zones"])
 
@@ -54,6 +56,38 @@ async def get_zone(
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
     return zone_to_dict(zone)
+
+
+@router.get("/{zone_id}/forecast")
+async def get_zone_forecast(
+    zone_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+    zone = await Zone.get(zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+
+    base_features = await get_zone_features(zone)
+    tomorrow_rain = get_tomorrow_rainfall(zone.district)
+
+    forecast_features = {
+        **base_features,
+        "rainfall_mm_24h": tomorrow_rain,
+        "rainfall_mm_7d": round(tomorrow_rain * 3, 2),
+    }
+    prediction = predict_zone_risk(**forecast_features)
+
+    return {
+        "zone_id": str(zone.id),
+        "zone_name": zone.name,
+        "district": zone.district,
+        "prediction_horizon": "tomorrow",
+        "predicted_rainfall_mm_24h": tomorrow_rain,
+        "predicted_risk_label": prediction["risk_label"],
+        "predicted_risk_score": prediction["risk_score"],
+        "features_used": forecast_features,
+    }
 
 # 🔒 Only safety_officer / admin can edit zones
 @router.patch("/{zone_id}")

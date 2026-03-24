@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { CircularProgress, Box } from "@mui/material";
+import { Box } from "@mui/material";
+import Skeleton from "react-loading-skeleton";
 
 export default function PrivateRoute({ children, requiredRole = null }) {
   const auth = useAuth();
@@ -8,8 +9,13 @@ export default function PrivateRoute({ children, requiredRole = null }) {
   // Still checking token with /api/auth/me
   if (!auth || auth.isLoading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", bgcolor: "#0a0a0a" }}>
-        <CircularProgress color="primary" />
+      <Box sx={{ height: "100vh", bgcolor: "#0a0a0a", p: 4 }}>
+        <Skeleton height={56} style={{ marginBottom: 20 }} />
+        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 2 }}>
+          <Skeleton height={120} />
+          <Skeleton height={120} />
+          <Skeleton height={120} />
+        </Box>
       </Box>
     );
   }

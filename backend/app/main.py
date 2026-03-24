@@ -10,6 +10,9 @@ from app.api.routes.reports       import router as reports_router
 from app.api.routes.crack_reports import router as crack_reports_router
 from app.api.routes.blast_events  import router as blast_events_router
 from app.api.routes.weather       import router as weather_router
+from app.api.routes.rainfall      import router as rainfall_router
+from app.services.ml_models import preload_models
+from app.services.forecast_runner import run_daily_risk_forecast
 import os
 
 @asynccontextmanager
@@ -25,13 +28,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[Startup] Collector error (non-fatal): {e}")
 
-    # Pre-load ML model into memory if trained
+    # Pre-load ML models into memory if available.
     try:
-        from app.ml.model2_risk_predictor.predict import _load
-        _load()
-        print("[Startup] ML model loaded ✅")
-    except Exception:
-        print("[Startup] ML model not trained yet — using threshold fallback ✅")
+        preload_models()
+        print("[Startup] Rockefeller models loaded ✅")
+    except Exception as e:
+        print(f"[Startup] Rockefeller model preload failed (non-fatal): {e}")
+
+    try:
+        rows = await run_daily_risk_forecast()
+        print(f"[Startup] Daily risk forecast generated for {rows} zones ✅")
+    except Exception as e:
+        print(f"[Startup] Daily risk forecast skipped (non-fatal): {e}")
 
     yield
     await close_db()
@@ -58,6 +66,7 @@ app.include_router(reports_router)
 app.include_router(crack_reports_router)
 app.include_router(blast_events_router)
 app.include_router(weather_router)
+app.include_router(rainfall_router)
 
 @app.get("/api/health")
 async def health():

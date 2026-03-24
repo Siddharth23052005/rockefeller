@@ -4,8 +4,9 @@ from app.models.alert import Alert
 from app.models.blast_event import BlastEvent
 from app.models.crack_report import CrackReport
 from app.models.weather_record import WeatherRecord
+from app.services.ml_models import predict_zone_risk
 
-async def _get_zone_features(zone: Zone) -> dict:
+async def get_zone_features(zone: Zone) -> dict:
     """Build feature dict for a zone from Atlas collections."""
     cutoff = datetime.utcnow() - timedelta(days=7)
 
@@ -33,6 +34,7 @@ async def _get_zone_features(zone: Zone) -> dict:
 
     # Zone static features
     days_since = (datetime.utcnow() - zone.last_updated).days if zone.last_updated else 30
+    month_now = datetime.utcnow().month
 
     return {
         "blast_count_7d":       blast_count,
@@ -42,17 +44,22 @@ async def _get_zone_features(zone: Zone) -> dict:
         "crack_count_7d":       crack_count,
         "avg_crack_score":      round(avg_crack, 3),
         "critical_crack_flag":  critical_flag,
-        "elevation_m":          zone.elevation_m or 300,
-        "area_sq_km":           zone.area_sq_km or 100,
+        "elevation_m":          getattr(zone, "elevation_m", 300) or 300,
+        "area_sq_km":           getattr(zone, "area_sq_km", 100) or 100,
         "days_since_inspection":days_since,
+        "is_monsoon":           1 if month_now in [6, 7, 8, 9] else 0,
     }
+
+
+async def _get_zone_features(zone: Zone) -> dict:
+    return await get_zone_features(zone)
 
 async def _create_alert_if_escalated(zone: Zone, old_level: str,
                                       new_level: str, features: dict):
-    """Create alert only if risk level actually increased."""
+    """Create alert if risk level escalates or remains red."""
     order = {"green": 0, "yellow": 1, "orange": 2, "red": 3}
-    if order.get(new_level, 0) <= order.get(old_level, 0):
-        return   # No escalation — no alert
+    if order.get(new_level, 0) <= order.get(old_level, 0) and new_level != "red":
+        return
 
     reasons = []
     if features["blast_count_7d"] >= 5:
@@ -62,7 +69,7 @@ async def _create_alert_if_escalated(zone: Zone, old_level: str,
     if features["critical_crack_flag"]:
         reasons.append("critical crack detected")
 
-    trigger = f"ML model escalated zone to {new_level.upper()}. " + \
+    trigger = f"ML model set zone to {new_level.upper()}. " + \
               (", ".join(reasons) if reasons else "Multiple risk factors combined.")
 
     alert = Alert(
@@ -71,7 +78,7 @@ async def _create_alert_if_escalated(zone: Zone, old_level: str,
         district           = zone.district,
         risk_level         = new_level,
         trigger_reason     = trigger,
-        trigger_source     = "ml_model2",
+        trigger_source     = "ml_model",
         recommended_action = {
             "red":    "Halt operations. Immediate inspection required.",
             "orange": "Reduce activity. Monitor closely.",
@@ -95,18 +102,22 @@ async def run_zone_risk_update(zone_id: str):
     features  = await _get_zone_features(zone)
 
     try:
-        from app.ml.model2_risk_predictor.predict import predict
-        new_level, new_score = predict(**features)
+        result = predict_zone_risk(**features)
+        new_level = str(result["risk_label"])
+        new_score = float(result["risk_score"])
     except Exception as e:
         print(f"[RuleEngine] ML model unavailable ({e}), using thresholds.")
-        # Fallback thresholds if model.pkl not trained yet
         r = features["rainfall_mm_24h"]
         b = features["blast_count_7d"]
         c = features["critical_crack_flag"]
-        if r >= 350 or b >= 10 or c:         new_level, new_score = "red",    0.85
-        elif r >= 250 or b >= 5:             new_level, new_score = "orange", 0.60
-        elif r >= 150 or b >= 3:             new_level, new_score = "yellow", 0.35
-        else:                                new_level, new_score = "green",  0.10
+        if r >= 350 or b >= 10 or c:
+            new_level, new_score = "red", 0.85
+        elif r >= 250 or b >= 5:
+            new_level, new_score = "orange", 0.60
+        elif r >= 150 or b >= 3:
+            new_level, new_score = "yellow", 0.35
+        else:
+            new_level, new_score = "green", 0.10
 
     # Update zone in Atlas
     zone.risk_level   = new_level

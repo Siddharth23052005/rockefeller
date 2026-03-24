@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { fetchZones } from "../../api/zones";
+import Skeleton from "react-loading-skeleton";
+import AnimatedNumber from "../../components/common/AnimatedNumber";
 
 // ── helpers ────────────────────────────────────────────────────
 function timeAgo(iso) {
@@ -17,25 +19,6 @@ function timeAgo(iso) {
 
 function initials(name = "") {
   return name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "??";
-}
-
-function useCountUp(target, delay = 0) {
-  const [val, setVal] = useState(0);
-  useEffect(() => {
-    if (!target) return;
-    const t = setTimeout(() => {
-      let cur = 0;
-      const step = Math.max(1, Math.ceil(target / 40));
-      const iv = setInterval(() => {
-        cur = Math.min(cur + step, target);
-        setVal(cur);
-        if (cur >= target) clearInterval(iv);
-      }, 18);
-      return () => clearInterval(iv);
-    }, delay);
-    return () => clearTimeout(t);
-  }, [target, delay]);
-  return val;
 }
 
 const ROLE_CFG = {
@@ -102,12 +85,12 @@ export default function AdminPage() {
   }, []);
 
   // ── KPIs ──
-  const totalZones  = useCountUp(zones.length, 0);
-  const critZones   = useCountUp(zones.filter(z => z.risk_level === "red").length, 80);
-  const totalUsers  = useCountUp(users.length, 120);
-  const onlineWorkers = useCountUp(
-    users.filter(u => u.role === "field_worker" && u.last_login &&
-      (Date.now() - new Date(u.last_login)) < 3600000).length, 180);
+  const totalZones = zones.length;
+  const critZones = zones.filter(z => z.risk_level === "red").length;
+  const totalUsers = users.length;
+  const onlineWorkers = users.filter(u => u.role === "field_worker" && u.last_login &&
+      (Date.now() - new Date(u.last_login)) < 3600000).length;
+
 
   // ── Filtered users ──
   const filteredUsers = users
@@ -243,8 +226,16 @@ export default function AdminPage() {
                   textTransform: "uppercase", letterSpacing: "0.14em",
                   margin: "0 0 14px" }}>{label}</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 44, fontWeight: 800, lineHeight: 1,
-                    color: valColor ?? "#e5e2e1" }}>{loading ? "—" : val}</span>
+                  {loading ? (
+                    <Skeleton height={44} width={64} />
+                  ) : (
+                    <span style={{ fontSize: 44, fontWeight: 800, lineHeight: 1,
+                      color: valColor ?? "#e5e2e1" }}>
+                      {typeof val === "number"
+                        ? <AnimatedNumber value={val} duration={1} />
+                        : val}
+                    </span>
+                  )}
                   {pulseDot && !loading && (
                     <span style={{ width: 8, height: 8, borderRadius: "50%",
                       background: "#ff5451",

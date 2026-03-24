@@ -71,7 +71,8 @@ export const AnalyticsCharts = () => {
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="incidents" fill={brandTokens.brand.accent} radius={[4, 4, 0, 0]} name="Incidents" />
+              <Bar dataKey="incidents" fill={brandTokens.brand.accent} radius={[4, 4, 0, 0]} name="Incidents"
+                isAnimationActive animationDuration={900} animationEasing="ease-out" />
             </BarChart>
           </ResponsiveContainer>
         </SectionCard>
@@ -87,10 +88,14 @@ export const AnalyticsCharts = () => {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Area type="monotone" dataKey="critical" stackId="1" fill={brandTokens.risk.red} stroke={brandTokens.risk.red} name="Critical" />
-              <Area type="monotone" dataKey="high" stackId="1" fill={brandTokens.risk.orange} stroke={brandTokens.risk.orange} name="High" />
-              <Area type="monotone" dataKey="caution" stackId="1" fill={brandTokens.risk.yellow} stroke={brandTokens.risk.yellow} name="Caution" />
-              <Area type="monotone" dataKey="safe" stackId="1" fill={brandTokens.risk.green} stroke={brandTokens.risk.green} name="Safe" />
+              <Area type="monotone" dataKey="critical" stackId="1" fill={brandTokens.risk.red} stroke={brandTokens.risk.red} name="Critical"
+                isAnimationActive animationDuration={900} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="high" stackId="1" fill={brandTokens.risk.orange} stroke={brandTokens.risk.orange} name="High"
+                isAnimationActive animationDuration={940} animationBegin={60} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="caution" stackId="1" fill={brandTokens.risk.yellow} stroke={brandTokens.risk.yellow} name="Caution"
+                isAnimationActive animationDuration={980} animationBegin={100} animationEasing="ease-out" />
+              <Area type="monotone" dataKey="safe" stackId="1" fill={brandTokens.risk.green} stroke={brandTokens.risk.green} name="Safe"
+                isAnimationActive animationDuration={1020} animationBegin={140} animationEasing="ease-out" />
             </AreaChart>
           </ResponsiveContainer>
         </SectionCard>
@@ -106,7 +111,8 @@ export const AnalyticsCharts = () => {
               <YAxis dataKey="riskScore" name="Risk Score" tick={{ fontSize: 11 }} />
               <ZAxis range={[40, 200]} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Scatter data={blastRisk} fill={brandTokens.risk.orange} />
+              <Scatter data={blastRisk} fill={brandTokens.risk.orange}
+                isAnimationActive animationDuration={900} animationEasing="ease-out" />
             </ScatterChart>
           </ResponsiveContainer>
         </SectionCard>
@@ -123,8 +129,10 @@ export const AnalyticsCharts = () => {
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
               <Tooltip contentStyle={tooltipStyle} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line yAxisId="left" type="monotone" dataKey="rainfall" stroke={brandTokens.brand.accentAlt} strokeWidth={2} dot={false} name="Rainfall (mm)" />
-              <Line yAxisId="right" type="monotone" dataKey="incidents" stroke={brandTokens.risk.red} strokeWidth={2} dot={false} name="Incidents" />
+              <Line yAxisId="left" type="monotone" dataKey="rainfall" stroke={brandTokens.brand.accentAlt} strokeWidth={2} dot={false} name="Rainfall (mm)"
+                isAnimationActive animationDuration={900} animationEasing="ease-out" />
+              <Line yAxisId="right" type="monotone" dataKey="incidents" stroke={brandTokens.risk.red} strokeWidth={2} dot={false} name="Incidents"
+                isAnimationActive animationDuration={980} animationBegin={100} animationEasing="ease-out" />
             </LineChart>
           </ResponsiveContainer>
         </SectionCard>
@@ -139,7 +147,8 @@ export const AnalyticsCharts = () => {
               <XAxis type="number" tick={{ fontSize: 11 }} />
               <YAxis type="category" dataKey="district" tick={{ fontSize: 11 }} width={80} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Bar dataKey="risk" fill={brandTokens.brand.accent} radius={[0, 4, 4, 0]} name="Avg Risk Score" />
+              <Bar dataKey="risk" fill={brandTokens.brand.accent} radius={[0, 4, 4, 0]} name="Avg Risk Score"
+                isAnimationActive animationDuration={920} animationEasing="ease-out" />
             </BarChart>
           </ResponsiveContainer>
         </SectionCard>
@@ -150,7 +159,8 @@ export const AnalyticsCharts = () => {
         <SectionCard title="Soil Type Risk Contribution">
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
-              <Pie data={SOIL_DATA} cx="50%" cy="50%" innerRadius={55} outerRadius={100} paddingAngle={3} dataKey="value">
+              <Pie data={SOIL_DATA} cx="50%" cy="50%" innerRadius={55} outerRadius={100} paddingAngle={3} dataKey="value"
+                isAnimationActive animationDuration={920} animationEasing="ease-out">
                 {SOIL_DATA.map((entry, i) => (
                   <Cell key={entry.name} fill={SOIL_COLORS[i]} />
                 ))}

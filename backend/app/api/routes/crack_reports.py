@@ -67,6 +67,7 @@ async def create_crack_report(
     zone_id:     str        = Form(...),
     crack_type:  str        = Form("other"),
     severity:    str        = Form("medium"),
+    crack_score: Optional[float] = Form(None),
     remarks:     str        = Form(""),
     reported_by: str        = Form(""),
     photo:       UploadFile = File(None),
@@ -90,9 +91,9 @@ async def create_crack_report(
             shutil.copyfileobj(photo.file, f)
         photo_url = f"/uploads/crack_reports/{filename}"
 
-    # Severity → AI score mapping (placeholder until real ML model)
+    # Use provided crack_score when available, otherwise map severity.
     severity_score_map = {"low": 0.2, "medium": 0.45, "high": 0.65, "critical": 0.85}
-    ai_risk_score = severity_score_map.get(severity.lower(), 0.3)
+    ai_risk_score = float(crack_score) if crack_score is not None else severity_score_map.get(severity.lower(), 0.3)
 
     report = CrackReport(
         zone_id           = str(zone.id),
@@ -109,8 +110,15 @@ async def create_crack_report(
     )
     await report.insert()
 
-    # Trigger rule engine
+    # Trigger Model 2 zone risk update based on fresh crack report.
     await run_crack_check(str(zone.id), ai_risk_score)
+
+    refreshed_zone = await Zone.get(str(zone.id))
+    if refreshed_zone:
+        report.ai_risk_score = refreshed_zone.risk_score
+        report.ai_severity_class = refreshed_zone.risk_level
+        report.status = "ai_scored"
+        await report.save()
 
     return crack_to_dict(report)
 
@@ -127,5 +135,27 @@ async def update_crack_report(
     for key, value in body.items():
         if hasattr(report, key) and value is not None:
             setattr(report, key, value)
+    await report.save()
+    return crack_to_dict(report)
+
+
+@router.patch("/{report_id}/review")
+async def review_crack_report(
+    report_id: str,
+    body: dict,
+    current_user: User = Depends(require_officer),
+):
+    report = await CrackReport.get(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Crack report not found")
+
+    if body.get("status") is None:
+        body["status"] = "reviewed"
+    for key, value in body.items():
+        if hasattr(report, key) and value is not None:
+            setattr(report, key, value)
+
+    report.reviewed_by = current_user.name
+    report.reviewed_at = datetime.utcnow()
     await report.save()
     return crack_to_dict(report)

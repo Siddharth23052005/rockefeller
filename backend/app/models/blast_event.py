@@ -9,6 +9,10 @@ class BlastEvent(Document):
     blast_date: datetime
     intensity: Optional[float] = None
     depth_meters: Optional[float] = None
+    blasts_this_week: Optional[int] = None
+    is_anomaly: Optional[bool] = None
+    anomaly_score: Optional[float] = None
+    anomaly_severity: Optional[str] = None
     explosive_type: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime = datetime.utcnow()

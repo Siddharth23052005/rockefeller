@@ -1,5 +1,6 @@
 import React from 'react';
 import { Chip } from '@mui/material';
+import { motion } from 'framer-motion';
 
 const STATUS_STYLES = {
   active: { bgcolor: '#FFEBEE', color: '#B71C1C' },
@@ -32,17 +33,23 @@ export const StatusChip = ({ status, size = 'small', sx = {} }) => {
   const label = STATUS_LABELS[status] || status;
 
   return (
-    <Chip
-      label={label}
-      size={size}
-      sx={{
-        fontWeight: 600,
-        fontSize: '0.7rem',
-        borderRadius: '6px',
-        ...style,
-        ...sx,
-      }}
-    />
+    <motion.div
+      initial={{ opacity: 0, scale: 0.7 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 340, damping: 24, delay: 0.06 }}
+    >
+      <Chip
+        label={label}
+        size={size}
+        sx={{
+          fontWeight: 600,
+          fontSize: '0.7rem',
+          borderRadius: '6px',
+          ...style,
+          ...sx,
+        }}
+      />
+    </motion.div>
   );
 };
 

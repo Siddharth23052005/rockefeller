@@ -78,11 +78,11 @@ body {
 }
 
 .app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(1) { animation-delay: 40ms; }
-.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(2) { animation-delay: 80ms; }
-.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(3) { animation-delay: 120ms; }
-.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(4) { animation-delay: 160ms; }
-.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(5) { animation-delay: 200ms; }
-.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(6) { animation-delay: 240ms; }
+.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(2) { animation-delay: 120ms; }
+.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(3) { animation-delay: 200ms; }
+.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(4) { animation-delay: 280ms; }
+.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(5) { animation-delay: 360ms; }
+.app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(6) { animation-delay: 440ms; }
 
 /* Global UI polish: subtle glow and motion */
 .app-main :is(.MuiButton-root, .MuiIconButton-root, button) {
@@ -128,6 +128,32 @@ body {
 
 .app-main .recharts-surface {
   overflow: visible;
+}
+
+/* List-row hover polish */
+.app-main :is(.MuiTableRow-root, .MuiListItem-root, .MuiListItemButton-root) {
+  transition: background-color 150ms ease;
+}
+
+.app-main :is(.MuiTableRow-root, .MuiListItem-root, .MuiListItemButton-root):hover {
+  background-color: rgba(58, 57, 57, 0.35);
+}
+
+/* Risk glow badges (critical + high) */
+.app-main .risk-badge.risk-red {
+  animation: riskPulseRed 2s ease-in-out infinite;
+}
+
+.app-main .risk-badge.risk-orange {
+  animation: riskPulseOrange 2s ease-in-out infinite;
+}
+
+/* Skeleton styling */
+.react-loading-skeleton {
+  --base-color: #1a1a1a;
+  --highlight-color: #2a2a2a;
+  --animation-duration: 1.8s;
+  border-radius: 6px;
 }
 
 @keyframes pageEnter {
@@ -202,6 +228,24 @@ body {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes riskPulseRed {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 84, 81, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 14px 1px rgba(255, 84, 81, 0.28);
+  }
+}
+
+@keyframes riskPulseOrange {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 185, 95, 0.14);
+  }
+  50% {
+    box-shadow: 0 0 10px 1px rgba(255, 185, 95, 0.2);
   }
 }
 

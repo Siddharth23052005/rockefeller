@@ -18,10 +18,14 @@ export const RiskTrendChart = ({ data }) => {
           }}
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Line type="monotone" dataKey="critical" stroke={brandTokens.risk.red} strokeWidth={2} dot={false} name="Critical" />
-        <Line type="monotone" dataKey="high" stroke={brandTokens.risk.orange} strokeWidth={2} dot={false} name="High" />
-        <Line type="monotone" dataKey="caution" stroke={brandTokens.risk.yellow} strokeWidth={2} dot={false} name="Caution" />
-        <Line type="monotone" dataKey="safe" stroke={brandTokens.risk.green} strokeWidth={2} dot={false} name="Safe" />
+        <Line type="monotone" dataKey="critical" stroke={brandTokens.risk.red} strokeWidth={2} dot={false} name="Critical"
+          isAnimationActive animationDuration={900} animationEasing="ease-out" />
+        <Line type="monotone" dataKey="high" stroke={brandTokens.risk.orange} strokeWidth={2} dot={false} name="High"
+          isAnimationActive animationDuration={940} animationBegin={60} animationEasing="ease-out" />
+        <Line type="monotone" dataKey="caution" stroke={brandTokens.risk.yellow} strokeWidth={2} dot={false} name="Caution"
+          isAnimationActive animationDuration={980} animationBegin={100} animationEasing="ease-out" />
+        <Line type="monotone" dataKey="safe" stroke={brandTokens.risk.green} strokeWidth={2} dot={false} name="Safe"
+          isAnimationActive animationDuration={1020} animationBegin={140} animationEasing="ease-out" />
       </LineChart>
     </ResponsiveContainer>
   );

@@ -62,7 +62,15 @@ export const WeatherTab = ({ weatherData, rainfallTrend }) => {
             <XAxis dataKey="day" tick={{ fontSize: 11 }} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', fontSize: 12 }} />
-            <Bar dataKey="rainfall" fill="#0288D1" radius={[4, 4, 0, 0]} name="Rainfall (mm)" />
+            <Bar
+              dataKey="rainfall"
+              fill="#0288D1"
+              radius={[4, 4, 0, 0]}
+              name="Rainfall (mm)"
+              isAnimationActive
+              animationDuration={900}
+              animationEasing="ease-out"
+            />
           </BarChart>
         </ResponsiveContainer>
       </SectionCard>

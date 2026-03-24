@@ -23,6 +23,9 @@ export const ZoneDistributionChart = ({ distribution = { green: 0, yellow: 0, or
           outerRadius={100}
           paddingAngle={3}
           dataKey="value"
+          isAnimationActive
+          animationDuration={900}
+          animationEasing="ease-out"
         >
           {data.map((entry, index) => (
             <Cell key={entry.name} fill={COLORS[index]} />

@@ -1,19 +1,20 @@
 import React from 'react';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
+import Skeleton from 'react-loading-skeleton';
 
 export const LoadingState = ({ message = 'Loading data...' }) => {
   return (
     <Box
       sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        py: 6,
+        py: 4,
       }}
     >
-      <CircularProgress size={36} sx={{ mb: 2, color: 'primary.main' }} />
-      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+      <Box sx={{ display: 'grid', gap: 1.5 }}>
+        <Skeleton height={14} width={180} />
+        <Skeleton height={52} />
+        <Skeleton height={52} />
+      </Box>
+      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 2 }}>
         {message}
       </Typography>
     </Box>

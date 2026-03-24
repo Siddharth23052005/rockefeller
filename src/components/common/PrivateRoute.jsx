@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
+import Skeleton from "react-loading-skeleton";
 
 export default function PrivateRoute({ children, requiredRole }) {
   const { currentUser, isLoading } = useAuth();
@@ -9,9 +10,12 @@ export default function PrivateRoute({ children, requiredRole }) {
     <Box sx={{
       minHeight: "100vh", bgcolor: "#131313",
       display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 2,
+      alignItems: "stretch", justifyContent: "center", gap: 2,
+      px: 4,
     }}>
-      <CircularProgress sx={{ color: "#ffb3ad" }} size={32} />
+      <Skeleton height={44} width="45%" />
+      <Skeleton height={100} />
+      <Skeleton height={100} />
       <Typography sx={{ color: "#e4beba", fontSize: 12,
         letterSpacing: "0.1em", fontWeight: 300 }}>
         AUTHENTICATING...

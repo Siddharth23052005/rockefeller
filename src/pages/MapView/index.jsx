@@ -13,6 +13,8 @@ const RISK = {
   green:  { fill: "#4edea3", stroke: "#4edea3", label: "Stable",    badge: "#4edea3" },
 };
 
+const getZoneCoordinates = (zone) => zone?.latlngs || zone?.coordinates || [];
+
 // ── Zoom controller component ──────────────────────────────────
 function MapControls({ onLocate }) {
   const map = useMap();
@@ -151,14 +153,21 @@ export default function MapViewPage() {
           attribution="&copy; CartoDB"
         />
 
-        {filteredZones.map(zone => zone.coordinates?.length > 0 && (
+        {filteredZones.map(zone => getZoneCoordinates(zone)?.length > 0 && (
           <Polygon
             key={zone.id}
-            positions={zone.coordinates}
+            className={`zone-poly zone-risk-${zone.risk_level || "green"}`}
+            positions={getZoneCoordinates(zone)}
             pathOptions={{
               fillColor:   RISK[zone.risk_level]?.fill   || "#ffb3ad",
               color:       RISK[zone.risk_level]?.stroke || "#ffb3ad",
-              fillOpacity: selected?.id === zone.id ? 0.6 : 0.3,
+              fillOpacity: selected?.id === zone.id
+                ? 0.68
+                : zone.risk_level === "red"
+                  ? 0.4
+                  : zone.risk_level === "orange"
+                    ? 0.34
+                    : 0.3,
               weight:      selected?.id === zone.id ? 2.5 : 1.5,
             }}
             eventHandlers={{ click: () => handleZoneClick(zone) }}
@@ -364,8 +373,8 @@ export default function MapViewPage() {
                   { label: "District",     val: selected.district  || "—" },
                   { label: "Risk Status",  val: RISK[selected.risk_level]?.label || "—",
                     color: RISK[selected.risk_level]?.fill },
-                  { label: "Coordinates", val: selected.coordinates?.length > 0
-                    ? `${selected.coordinates[0][0]?.toFixed(3)}°N`
+                  { label: "Coordinates", val: getZoneCoordinates(selected)?.length > 0
+                    ? `${getZoneCoordinates(selected)[0][0]?.toFixed(3)}°N`
                     : "—" },
                 ].map(({ label, val, color }) => (
                   <div key={label} style={{
@@ -604,6 +613,20 @@ export default function MapViewPage() {
         @keyframes legendPulse {
           0%,100% { opacity: 1; }
           50%     { opacity: 0.35; }
+        }
+        @keyframes zonePulseRed {
+          0%, 100% { fill-opacity: 0.4; }
+          50% { fill-opacity: 0.7; }
+        }
+        @keyframes zonePulseOrange {
+          0%, 100% { fill-opacity: 0.32; }
+          50% { fill-opacity: 0.52; }
+        }
+        .leaflet-interactive.zone-poly.zone-risk-red {
+          animation: zonePulseRed 3s ease-in-out infinite;
+        }
+        .leaflet-interactive.zone-poly.zone-risk-orange {
+          animation: zonePulseOrange 3.8s ease-in-out infinite;
         }
         .leaflet-container { background: #131313 !important; }
         .leaflet-tooltip {

@@ -71,6 +71,9 @@ export default function SidebarNav() {
                   bgcolor: "#201F1F",
                   color: "#FFB3AD",
                   opacity: 1,
+                  "& .material-symbols-outlined": {
+                    transform: "scale(1.15)",
+                  },
                 },
               }}>
                 <span
@@ -78,6 +81,11 @@ export default function SidebarNav() {
                   style={{
                     fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
                     fontSize: 20,
+                    transform: "scale(1)",
+                    transition: "transform 150ms ease, filter 150ms ease",
+                    filter: isActive
+                      ? "drop-shadow(0 0 8px rgba(255,179,173,0.35))"
+                      : "none",
                   }}>
                   {icon}
                 </span>
@@ -103,11 +111,25 @@ export default function SidebarNav() {
                 letterSpacing: "0.1em", fontFamily: "Inter",
                 cursor: "pointer",
                 transition: "all 0.2s",
-                "&:hover": { bgcolor: "#201F1F", color: "#FFB3AD", opacity: 1 },
+                "&:hover": {
+                  bgcolor: "#201F1F",
+                  color: "#FFB3AD",
+                  opacity: 1,
+                  "& .material-symbols-outlined": {
+                    transform: "scale(1.15)",
+                  },
+                },
               }}>
                 <span className="material-symbols-outlined"
-                  style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
-                    fontSize: 20 }}>
+                  style={{
+                    fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0",
+                    fontSize: 20,
+                    transform: "scale(1)",
+                    transition: "transform 150ms ease, filter 150ms ease",
+                    filter: isActive
+                      ? "drop-shadow(0 0 8px rgba(255,179,173,0.35))"
+                      : "none",
+                  }}>
                   admin_panel_settings
                 </span>
                 Admin
