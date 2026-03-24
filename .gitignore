@@ -1,8 +1,35 @@
 node_modules/
 .env/
 env/
-env/
 __pycache__/
 *.pyc
 dist/
 build/
+
+# Project planning/docs not needed in git history
+BRAND_GUIDELINES.md
+PROJECT_PLAN.md
+
+# Python virtual environments
+.venv/
+venv/
+
+# Python cache and tooling artifacts
+*.pyo
+*.pyd
+*.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Backend runtime/generated files
+backend/uploads/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -52,6 +52,8 @@ body {
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --app-anim-fast: 260ms;
   --app-anim-med: 420ms;
+  --ui-glow-soft: 0 0 0 1px rgba(255, 179, 173, 0.14), 0 0 12px rgba(255, 179, 173, 0.08);
+  --ui-glow-strong: 0 0 0 1px rgba(255, 179, 173, 0.28), 0 0 20px rgba(255, 179, 173, 0.18);
 }
 
 .app-main > .route-enter {
@@ -81,6 +83,52 @@ body {
 .app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(4) { animation-delay: 160ms; }
 .app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(5) { animation-delay: 200ms; }
 .app-main .MuiGrid-container > .MuiGrid-item:nth-of-type(6) { animation-delay: 240ms; }
+
+/* Global UI polish: subtle glow and motion */
+.app-main :is(.MuiButton-root, .MuiIconButton-root, button) {
+  transition: transform var(--app-anim-fast) ease, box-shadow var(--app-anim-fast) ease, filter var(--app-anim-fast) ease;
+}
+
+.app-main .MuiButton-root {
+  box-shadow: var(--ui-glow-soft);
+}
+
+.app-main .MuiButton-root:hover,
+.app-main .MuiButton-root:focus-visible,
+.app-main .MuiIconButton-root:hover,
+.app-main .MuiIconButton-root:focus-visible,
+.app-main button:hover,
+.app-main button:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: var(--ui-glow-strong);
+  filter: brightness(1.03);
+}
+
+/* Material icons get a very light breathing animation to mimic dashboard risk subtle motion */
+.app-main .material-symbols-outlined {
+  animation: iconBreathe 4.4s ease-in-out infinite;
+  will-change: transform, filter, opacity;
+}
+
+/* Keep nav and critical indicators calmer if already animated elsewhere */
+.app-main :is(.MuiDrawer-root, nav, header) .material-symbols-outlined,
+.app-main [style*="Pulse"] .material-symbols-outlined {
+  animation-duration: 6s;
+}
+
+/* Chart polish */
+.app-main .recharts-wrapper :is(.recharts-bar-rectangle, .recharts-sector, .recharts-line-curve, .recharts-area-area) {
+  filter: drop-shadow(0 0 3px rgba(255, 179, 173, 0.12));
+  animation: chartFadeIn 650ms var(--ease-out-soft) both;
+}
+
+.app-main .recharts-wrapper .recharts-tooltip-wrapper {
+  animation: fadeInSoft 180ms ease-out both;
+}
+
+.app-main .recharts-surface {
+  overflow: visible;
+}
 
 @keyframes pageEnter {
   from {
@@ -130,6 +178,30 @@ body {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes iconBreathe {
+  0%, 100% {
+    opacity: 0.96;
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 0 rgba(255, 179, 173, 0));
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-0.5px) scale(1.015);
+    filter: drop-shadow(0 0 6px rgba(255, 179, 173, 0.16));
+  }
+}
+
+@keyframes chartFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
