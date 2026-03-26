@@ -19,3 +19,4 @@ prophet>=1.1.5
 python-dotenv
 httpx
 requests
+pywebpush>=2.0.3

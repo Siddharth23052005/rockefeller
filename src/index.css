@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -160,12 +162,10 @@ body {
   from {
     opacity: 0;
     transform: translateY(12px) scale(0.995);
-    filter: saturate(0.9);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: saturate(1);
   }
 }
 

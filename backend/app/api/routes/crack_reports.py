@@ -4,11 +4,14 @@ from typing import Optional
 from datetime import datetime
 import os, shutil, uuid
 from app.models.crack_report import CrackReport
+from app.models.alert import Alert, TriggerSource
+from app.models.notification import NotificationType
 from app.models.zone import Zone
-from app.api.dependencies import get_current_user, require_officer
+from app.api.dependencies import get_current_user, require_admin, require_officer
 from app.core.rule_engine import run_crack_check
 from app.core.config import settings
 from app.models.user import User
+from app.services.notification_service import create_notifications_for_users
 
 router = APIRouter(prefix="/api/crack-reports", tags=["crack-reports"])
 
@@ -27,6 +30,7 @@ def crack_to_dict(c: CrackReport) -> dict:
         "id":                str(c.id),
         "zone_id":           c.zone_id,
         "zone_name":         c.zone_name,
+        "reporter_user_id":  c.reporter_user_id,
         "crack_type":        c.crack_type,
         "severity":          c.severity,
         "ai_severity_class": c.ai_severity_class,
@@ -35,6 +39,8 @@ def crack_to_dict(c: CrackReport) -> dict:
         "status":            c.status,
         "reported_by":       c.reported_by,
         "remarks":           c.remarks,
+        "reviewed_by":       c.reviewed_by,
+        "reviewed_at":       c.reviewed_at.isoformat() if c.reviewed_at else None,
         "created_at":        c.created_at.isoformat() if c.created_at else None,
     }
 
@@ -99,6 +105,7 @@ async def create_crack_report(
         zone_id           = str(zone.id),
         zone_name         = zone.name,
         reported_by       = reported_by or current_user.name,
+        reporter_user_id  = str(current_user.id),
         crack_type        = normalized_type,
         severity          = severity,
         ai_severity_class = severity,
@@ -117,7 +124,6 @@ async def create_crack_report(
     if refreshed_zone:
         report.ai_risk_score = refreshed_zone.risk_score
         report.ai_severity_class = refreshed_zone.risk_level
-        report.status = "ai_scored"
         await report.save()
 
     return crack_to_dict(report)
@@ -159,3 +165,104 @@ async def review_crack_report(
     report.reviewed_at = datetime.utcnow()
     await report.save()
     return crack_to_dict(report)
+
+
+@router.patch("/{report_id}/verify")
+async def verify_crack_report(
+    report_id: str,
+    current_user: User = Depends(require_admin),
+):
+    report = await CrackReport.get(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Crack report not found")
+
+    zone = await Zone.get(report.zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+
+    report.status = "verified"
+    report.reviewed_by = current_user.name
+    report.reviewed_at = datetime.utcnow()
+    await report.save()
+
+    alert = Alert(
+        zone_id=str(zone.id),
+        zone_name=zone.name,
+        district=zone.district,
+        risk_level=zone.risk_level,
+        trigger_reason=f"Verified crack report ({report.crack_type}) in {zone.name}",
+        trigger_source=TriggerSource.crack_confirmed,
+        recommended_action="Dispatch field inspection and monitor slope sensors.",
+        status="active",
+        created_at=datetime.utcnow(),
+    )
+    await alert.insert()
+
+    workers = await User.find(
+        User.role == "field_worker",
+        User.zone_assigned == str(zone.id),
+    ).to_list()
+
+    worker_ids = [str(worker.id) for worker in workers]
+    if worker_ids:
+        await create_notifications_for_users(
+            worker_ids,
+            title="Crack Report Verified",
+            message=f"{zone.name}: verified crack report triggered a new alert.",
+            zone_id=str(zone.id),
+            zone_name=zone.name,
+            notif_type=NotificationType.alert,
+            send_push=True,
+        )
+
+    return {
+        "report": crack_to_dict(report),
+        "alert": {
+            "id": str(alert.id),
+            "zone_id": alert.zone_id,
+            "zone_name": alert.zone_name,
+            "risk_level": alert.risk_level,
+            "trigger_reason": alert.trigger_reason,
+            "created_at": alert.created_at.isoformat() if alert.created_at else None,
+        },
+        "notified_users": len(worker_ids),
+    }
+
+
+@router.patch("/{report_id}/reject")
+async def reject_crack_report(
+    report_id: str,
+    current_user: User = Depends(require_admin),
+):
+    report = await CrackReport.get(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Crack report not found")
+
+    report.status = "rejected"
+    report.reviewed_by = current_user.name
+    report.reviewed_at = datetime.utcnow()
+    await report.save()
+
+    target_user_id = report.reporter_user_id
+    if not target_user_id and report.reported_by:
+        submitter = await User.find_one(User.name == report.reported_by)
+        if submitter:
+            target_user_id = str(submitter.id)
+
+    notified = 0
+    if target_user_id:
+        await create_notifications_for_users(
+            [target_user_id],
+            title="Crack Report Reviewed",
+            message=f"Your crack report for {report.zone_name} was reviewed and rejected.",
+            zone_id=report.zone_id,
+            zone_name=report.zone_name,
+            notif_type=NotificationType.warning,
+            send_push=True,
+        )
+        notified = 1
+
+    return {
+        "report": crack_to_dict(report),
+        "notified_users": notified,
+    }

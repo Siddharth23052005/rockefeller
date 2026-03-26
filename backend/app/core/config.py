@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     CRACK_RISK_CRITICAL_THRESHOLD: float = 0.7
     WATER_REPORT_YELLOW_THRESHOLD: int = 2
     ZONE_PROXIMITY_ALERT_METERS: int = 200
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_CLAIMS_SUBJECT: str = "mailto:admin@rockefeller.local"
 
     class Config:
         env_file = ".env"

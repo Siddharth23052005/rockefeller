@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import { useAuth } from "../../context/AuthContext";
 import { T } from "../../theme/tokens";
@@ -15,6 +15,8 @@ const NAV = [
 export default function SidebarNav() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isMapRoute = pathname === "/map";
 
   const handleLogout = () => {
     logout();
@@ -24,29 +26,33 @@ export default function SidebarNav() {
   return (
     <Box sx={{
       position: "fixed", left: 0, top: 0,
-      width: 256, height: "100vh",
+      width: isMapRoute ? 96 : 256, height: "100vh",
       bgcolor: "#0E0E0E",
       borderRight: "1px solid rgba(91,64,62,0.15)",
       display: "flex", flexDirection: "column",
       py: 3, zIndex: 50,
       animation: "shellSlideInLeft 0.45s ease both",
+      transition: "width 0.28s ease",
     }}>
       {/* Logo */}
-      <Box sx={{ px: 3, mb: 5 }}>
+      <Box onClick={() => navigate("/dashboard")} sx={{ px: 3, mb: 5, cursor: "pointer" }}>
         <Typography sx={{
-          fontSize: 20, fontWeight: 700,
+          fontSize: isMapRoute ? 17 : 20, fontWeight: 700,
           letterSpacing: "-0.05em", color: "#E5E2E1",
           fontFamily: "Inter",
+          animation: "floatIcon 3s ease-in-out infinite",
         }}>
-          Rockefeller
+          {isMapRoute ? "R" : "Rockefeller"}
         </Typography>
-        <Typography sx={{
-          fontSize: "0.6875rem", fontWeight: 300,
-          letterSpacing: "0.1em", color: "#E4BEBA",
-          fontFamily: "Inter",
-        }}>
-          Maharashtra, India
-        </Typography>
+        {!isMapRoute && (
+          <Typography sx={{
+            fontSize: "0.6875rem", fontWeight: 300,
+            letterSpacing: "0.1em", color: "#E4BEBA",
+            fontFamily: "Inter",
+          }}>
+            Maharashtra, India
+          </Typography>
+        )}
       </Box>
 
       {/* Nav */}
@@ -56,7 +62,7 @@ export default function SidebarNav() {
             {({ isActive }) => (
               <Box sx={{
                 display: "flex", alignItems: "center", gap: 2,
-                px: 3, py: 1.5,
+                px: isMapRoute ? 2.25 : 3, py: 1.5,
                 borderLeft: isActive
                   ? "2px solid #FFB3AD"
                   : "2px solid transparent",
@@ -89,7 +95,7 @@ export default function SidebarNav() {
                   }}>
                   {icon}
                 </span>
-                {label}
+                {!isMapRoute && label}
               </Box>
             )}
           </NavLink>
@@ -101,7 +107,7 @@ export default function SidebarNav() {
             {({ isActive }) => (
               <Box sx={{
                 display: "flex", alignItems: "center", gap: 2,
-                px: 3, py: 1.5,
+                px: isMapRoute ? 2.25 : 3, py: 1.5,
                 borderLeft: isActive
                   ? "2px solid #FFB3AD"
                   : "2px solid transparent",
@@ -132,7 +138,7 @@ export default function SidebarNav() {
                   }}>
                   admin_panel_settings
                 </span>
-                Admin
+                {!isMapRoute && "Admin"}
               </Box>
             )}
           </NavLink>
@@ -159,14 +165,16 @@ export default function SidebarNav() {
               account_circle
             </span>
           </Box>
-          <Box>
+          {!isMapRoute && (
+            <Box>
             <Typography sx={{ fontSize: 10, fontWeight: 700, color: "#E5E2E1" }}>
               {currentUser?.name || "Guest"}
             </Typography>
             <Typography sx={{ fontSize: 9, color: "#E4BEBA", textTransform: "capitalize" }}>
               {currentUser?.role || "—"}
             </Typography>
-          </Box>
+            </Box>
+          )}
         </Box>
 
         <Box
@@ -197,9 +205,11 @@ export default function SidebarNav() {
           <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
             logout
           </span>
-          Logout
+          {!isMapRoute && "Logout"}
         </Box>
       </Box>
+
+      <style>{`@keyframes floatIcon { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }`}</style>
     </Box>
   );
 }

@@ -18,6 +18,8 @@ class CrackStatus(str, Enum):
     pending = "pending"
     ai_scored = "ai_scored"
     reviewed = "reviewed"
+    verified = "verified"
+    rejected = "rejected"
     closed = "closed"
 
 class EngineerAction(str, Enum):
@@ -29,6 +31,7 @@ class CrackReport(Document):
     zone_id: str
     zone_name: str
     reported_by: str
+    reporter_user_id: Optional[str] = None
     photo_url: Optional[str] = None
     annotated_photo_url: Optional[str] = None   # ML fills later
     coords: Optional[dict] = None

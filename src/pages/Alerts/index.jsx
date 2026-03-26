@@ -5,7 +5,7 @@ import {
   acknowledgeAlert,
   resolveAlert,
 } from "../../api/alerts";
-import { MapContainer, TileLayer } from "react-leaflet";
+import { MapContainer, TileLayer, useMap } from "react-leaflet";
 
 
 // ── Risk config ────────────────────────────────────────────────
@@ -762,6 +762,7 @@ function FloatingMapPreview() {
           transition: "filter 0.4s ease",
         }}
       >
+        <MiniMapSizer sizeKey={hov ? "expanded" : "compact"} />
         <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
       </MapContainer>
 
@@ -819,4 +820,17 @@ function FloatingMapPreview() {
       </div>
     </div>
   );
+}
+
+function MiniMapSizer({ sizeKey }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      map.invalidateSize();
+    }, 120);
+    return () => clearTimeout(handle);
+  }, [map, sizeKey]);
+
+  return null;
 }

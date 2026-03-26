@@ -13,6 +13,8 @@ from app.models.weather_record import WeatherRecord
 from app.models.history import HistoricalLandslide
 from app.models.risk_prediction import RiskPrediction
 from app.models.user_location import UserLocation
+from app.models.notification import Notification
+from app.models.push_subscription import PushSubscription
 
 client = None
 
@@ -25,7 +27,8 @@ async def init_db():
         document_models=[
             User, Zone, Alert, Report, CrackReport,
             BlastEvent, ExplorationLog, WeatherRecord,
-            HistoricalLandslide, RiskPrediction, UserLocation
+            HistoricalLandslide, RiskPrediction, UserLocation,
+            Notification, PushSubscription,
         ]
     )
 

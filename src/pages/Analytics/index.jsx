@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { fetchZones } from "../../api/zones";
@@ -22,6 +22,7 @@ function timeAgo(iso) {
 
 export default function AnalyticsPage() {
   const navigate = useNavigate();
+  const pageRef = useRef(null);
   const [mounted,  setMounted]  = useState(false);
   const [zones,    setZones]    = useState([]);
   const [alerts,   setAlerts]   = useState([]);
@@ -31,6 +32,7 @@ export default function AnalyticsPage() {
   const [fRisk,    setFRisk]    = useState("All");
   const [fMine,    setFMine]    = useState("All");
   const [sortBy,   setSortBy]   = useState("risk"); // "risk"|"name"|"rainfall"
+  const [showRightNav, setShowRightNav] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,7 +64,7 @@ export default function AnalyticsPage() {
   // filter + sort
   const mines = ["All", ...new Set(zones.map(z => z.mine_name).filter(Boolean))];
   const filtered = zones
-    .filter(z => fRisk === "All" || z.risk_level === fRisk)
+    .filter(z => fRisk === "All" || (z.risk_level || "").toLowerCase() === fRisk)
     .filter(z => fMine === "All" || z.mine_name === fMine)
     .sort((a, b) => {
       if (sortBy === "risk")     return (b.risk_score ?? 0) - (a.risk_score ?? 0);
@@ -70,6 +72,22 @@ export default function AnalyticsPage() {
       if (sortBy === "rainfall") return (b.recent_rainfall ?? 0) - (a.recent_rainfall ?? 0);
       return 0;
     });
+
+  useEffect(() => {
+    const handlePointer = (e) => {
+      const root = pageRef.current;
+      if (!root) return;
+      const maxScroll = root.scrollWidth - root.clientWidth;
+      const nearRight = e.clientX > window.innerWidth - 60;
+      setShowRightNav(nearRight && maxScroll > 8 && root.scrollLeft < maxScroll - 4);
+    };
+
+    const root = pageRef.current;
+    if (!root) return undefined;
+
+    root.addEventListener("mousemove", handlePointer);
+    return () => root.removeEventListener("mousemove", handlePointer);
+  }, [zones.length, loading]);
 
   // risk distribution for bar chart
   const distrib = ["red","orange","yellow","green"].map(k => ({
@@ -79,11 +97,13 @@ export default function AnalyticsPage() {
   }));
 
   return (
-    <div style={{
+    <div ref={pageRef} style={{
       padding: "32px 32px 80px",
       fontFamily: "Inter, sans-serif",
       opacity: mounted ? 1 : 0,
       transition: "opacity 0.45s ease",
+      overflowX: "auto",
+      position: "relative",
     }}>
 
       {/* ── KPI Row ── */}
@@ -130,6 +150,9 @@ export default function AnalyticsPage() {
           <div style={{
             display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end",
             animation: "anSlideDown 0.4s ease 0.1s both",
+            position: "relative",
+            zIndex: 30,
+            isolation: "isolate",
           }}>
             {/* Risk filter pills */}
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -166,6 +189,8 @@ export default function AnalyticsPage() {
                   color: "#e5e2e1", fontSize: 11, padding: "7px 28px 7px 10px",
                   fontFamily: "Inter", outline: "none", borderRadius: 2,
                   appearance: "none", cursor: "pointer", minWidth: 140,
+                  position: "relative",
+                  zIndex: 40,
                 }}>
                   {mines.map(m => <option key={m} value={m}>{m === "All" ? "All Mines" : m}</option>)}
                 </select>
@@ -212,7 +237,7 @@ export default function AnalyticsPage() {
                 textTransform: "uppercase", letterSpacing: "0.12em" }}>No zones match filters</p>
             </div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 16, position: "relative", zIndex: 1 }}>
               {filtered.map((z, i) => (
                 <ZoneCard key={z.id ?? i} zone={z} idx={i}
                   onClick={() => navigate(`/zones/${z.id}`)} />
@@ -468,6 +493,31 @@ export default function AnalyticsPage() {
           Click any bar to view zone details
         </p>
       </div>
+
+      {showRightNav && (
+        <button
+          onClick={() => pageRef.current?.scrollBy({ left: 420, behavior: "smooth" })}
+          style={{
+            position: "fixed",
+            right: 14,
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: 38,
+            height: 52,
+            borderRadius: 4,
+            border: "1px solid rgba(91,64,62,0.25)",
+            background: "rgba(28,27,27,0.92)",
+            color: "#ffb3ad",
+            cursor: "pointer",
+            zIndex: 90,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+          }}
+          aria-label="Scroll right"
+          title="Scroll right"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>chevron_right</span>
+        </button>
+      )}
 
       <style>{CSS}</style>
     </div>

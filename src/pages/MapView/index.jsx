@@ -137,9 +137,10 @@ export default function MapViewPage() {
   return (
     <div style={{
       position: "fixed",
-      top: 64, left: 256, right: 0, bottom: 0,
+      top: 64, left: "var(--sidebar-w, 256px)", right: 0, bottom: 0,
       background: "#131313", overflow: "hidden",
       fontFamily: "Inter, sans-serif",
+      transition: "left 0.28s ease",
     }}>
 
       {/* ── Actual Leaflet Map ── */}

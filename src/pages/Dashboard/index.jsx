@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box, Typography, Grid,
@@ -16,6 +16,8 @@ import { acknowledgeAlert, resolveAlert } from "../../api/alerts";
 import { formatTimeAgo } from "../../utils/formatUtils";
 import { T } from "../../theme/tokens";
 import AnimatedNumber from "../../components/common/AnimatedNumber";
+import RainfallWidget from "../../components/dashboard/RainfallWidget";
+import RiskTrendChart from "../../components/dashboard/RiskTrendChart";
 
 // ── Design helpers ─────────────────────────────────────────────
 const glass = {
@@ -290,11 +292,18 @@ export default function DashboardPage() {
   const navigate     = useNavigate();
   const { currentUser } = useAuth();
   const canAct = ["admin", "safety_officer"].includes(currentUser?.role);
+  const [dismissBlastBanner, setDismissBlastBanner] = useState(false);
 
   const {
     kpis, recentAlerts, distribution, trendData,
     activityFeed, rainfallSummary, zones, loading,
-  } = useDashboardData();
+    rainfallForecast, zoneRiskCards, blastAnomalyAlert, zoneForecastTrends,
+  } = useDashboardData(currentUser?.district);
+
+  const blastAnomalyScore = useMemo(() => {
+    const match = (blastAnomalyAlert?.trigger_reason || "").match(/score:\s*([-+]?\d*\.?\d+)/i);
+    return match ? Number(match[1]) : null;
+  }, [blastAnomalyAlert]);
 
   const handleAck     = async (id) => { await acknowledgeAlert(id); };
   const handleResolve = async (id) => { await resolveAlert(id); };
@@ -344,6 +353,48 @@ export default function DashboardPage() {
   return (
     <Box>
 
+      {/* ── Blast Anomaly Banner ───────────────────── */}
+      {blastAnomalyAlert && !dismissBlastBanner && (
+        <Box sx={{
+          mb: 3,
+          p: 2,
+          borderRadius: "4px",
+          border: "1px solid rgba(255,84,81,0.35)",
+          background: "linear-gradient(135deg, rgba(255,84,81,0.16), rgba(255,84,81,0.08))",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          animation: "fadeUpSoft 0.4s ease both",
+        }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <span className="material-symbols-outlined" style={{ color: T.primaryCont, fontSize: 20 }}>
+              warning
+            </span>
+            <Typography sx={{ fontSize: 12, color: T.onSurface }}>
+              Blast anomaly detected in <strong>{blastAnomalyAlert.zone_name || "Unknown Zone"}</strong>
+              {Number.isFinite(blastAnomalyScore) ? ` (score: ${blastAnomalyScore.toFixed(2)})` : ""}
+            </Typography>
+          </Box>
+          <Box
+            onClick={() => setDismissBlastBanner(true)}
+            sx={{
+              color: T.primaryCont,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+              px: 1.2,
+              py: 0.6,
+              borderRadius: "2px",
+              "&:hover": { bgcolor: "rgba(255,84,81,0.15)" },
+            }}
+          >
+            Dismiss
+          </Box>
+        </Box>
+      )}
+
       {/* ── Row 1: KPI Cards ─────────────────────────── */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={3}>
@@ -382,6 +433,77 @@ export default function DashboardPage() {
             sub="Field worker submissions"
           />
         </Grid>
+      </Grid>
+
+      {/* ── Row 1B: Zone Risk Score Cards ─────────── */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {(zoneRiskCards || []).slice(0, 4).map((zone, i) => {
+          const badgeColor = RISK_COLORS[zone.risk_label] || T.tertiary;
+          return (
+            <Grid key={zone.id} item xs={12} md={6} lg={3}>
+              <Box sx={{
+                ...glass,
+                p: 2,
+                animation: `fadeUpSoft 0.4s ease ${i * 0.08}s both`,
+              }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                  <Typography sx={{ fontSize: 11, fontWeight: 700, color: T.onSurface }}>
+                    {zone.zoneName}
+                  </Typography>
+                  <Box className={`risk-badge risk-${zone.risk_label}`} sx={{
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: badgeColor,
+                    bgcolor: `${badgeColor}1a`,
+                    px: 1,
+                    py: 0.3,
+                    borderRadius: "999px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                  }}>
+                    {zone.risk_label}
+                  </Box>
+                </Box>
+
+                <Typography sx={{ fontSize: 9, color: T.onSurfaceVar, mb: 0.9 }}>
+                  {zone.district}
+                </Typography>
+
+                <Box sx={{
+                  height: 8,
+                  bgcolor: "rgba(255,255,255,0.08)",
+                  borderRadius: "999px",
+                  overflow: "hidden",
+                  mb: 1,
+                }}>
+                  <Box sx={{
+                    height: "100%",
+                    width: `${Math.max(0, Math.min(100, zone.risk_score_pct))}%`,
+                    bgcolor: badgeColor,
+                    transition: "width 0.8s ease-out",
+                  }} />
+                </Box>
+
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <Typography sx={{ fontSize: 10, color: T.onSurface, fontWeight: 700 }}>
+                    {zone.risk_score_pct}% risk score
+                  </Typography>
+                  <Box sx={{
+                    fontSize: 9,
+                    color: T.onSurfaceVar,
+                    border: `1px solid ${T.outlineVar}`,
+                    borderRadius: "999px",
+                    px: 0.9,
+                    py: 0.2,
+                    textTransform: "uppercase",
+                  }}>
+                    {zone.ai_severity_class}
+                  </Box>
+                </Box>
+              </Box>
+            </Grid>
+          );
+        })}
       </Grid>
 
       {/* ── Row 2: Map + Alerts Feed ─────────────────── */}
@@ -567,66 +689,21 @@ export default function DashboardPage() {
             display: "flex", flexDirection: "column",
             background: `linear-gradient(135deg, ${T.surfaceHigh}, ${T.surfaceCont})`,
           }}>
-            <Typography sx={{ fontSize: 10, color: T.onSurfaceVar,
-              textTransform: "uppercase", letterSpacing: "0.15em",
-              fontWeight: 700, mb: 2 }}>
-              Met Forecast Focus
-            </Typography>
-            <Box sx={{ mb: 3 }}>
-              <Typography sx={{ fontSize: 28, fontWeight: 700, color: T.onSurface }}>
-                {rainfallSummary?.district || "—"}
-              </Typography>
-              <Typography sx={{ fontSize: 12, color: T.onSurfaceVar }}>
-                District Peak Intensity
-              </Typography>
-            </Box>
-
-            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 2 }}>
-              {[
-                ["Rainfall (24h)", `${rainfallSummary?.rainfallLast24h ?? 0}mm`, T.primary],
-                ["7-Day Total",    `${rainfallSummary?.rainfallLast7d ?? 0}mm`,  T.onSurface],
-                ["Trend",          rainfallSummary?.trend || "stable",
-                  rainfallSummary?.trend === "increasing" ? T.primaryCont : T.tertiary],
-                ["Warning Level",  rainfallSummary?.warningLevel || "none",
-                  rainfallSummary?.warningLevel === "extreme" ? T.primaryCont : T.secondary],
-              ].map(([label, val, color]) => (
-                <Box key={label} sx={{
-                  display: "flex", justifyContent: "space-between",
-                  alignItems: "flex-end",
-                  borderBottom: `1px solid rgba(91,64,62,0.15)`, pb: 1,
-                }}>
-                  <Typography sx={{ fontSize: 11, color: T.onSurfaceVar }}>
-                    {label}
-                  </Typography>
-                  <Typography sx={{ fontSize: label === "Rainfall (24h)" ? 18 : 11,
-                    fontWeight: 700, color, textTransform: "capitalize" }}>
-                    {val}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-
-            {rainfallSummary?.warningLevel &&
-             rainfallSummary.warningLevel !== "none" && (
-              <Box sx={{
-                mt: 2, p: 1.5, borderRadius: "2px",
-                bgcolor: `${T.primaryCont}18`,
-                display: "flex", alignItems: "center", gap: 1.5,
-              }}>
-                <span className="material-symbols-outlined"
-                  style={{ color: T.primaryCont, fontSize: 20 }}>thunderstorm</span>
-                <Typography sx={{ fontSize: 10, color: T.primaryCont, lineHeight: 1.4 }}>
-                  {rainfallSummary.warningLevel === "extreme"
-                    ? "Extreme rainfall warning active."
-                    : "Heavy rainfall warning issued."}
-                </Typography>
-              </Box>
-            )}
+            <RainfallWidget data={rainfallSummary} forecast={rainfallForecast?.forecast || []} />
           </Box>
         </Grid>
       </Grid>
 
-      {/* ── Row 4: Activity Timeline ─────────────────── */}
+      {/* ── Row 4: ML Risk Trend Sparkline ─────────── */}
+      <Box sx={{ ...glass, p: 3, mb: 4 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.onSurface,
+          letterSpacing: "-0.02em", mb: 2 }}>
+          7-Day Zone Risk Outlook
+        </Typography>
+        <RiskTrendChart trends={zoneForecastTrends} />
+      </Box>
+
+      {/* ── Row 5: Activity Timeline ─────────────────── */}
       <Box sx={{ ...glass, p: 3 }}>
         <Typography sx={{ fontSize: 13, fontWeight: 700, color: T.onSurface,
           letterSpacing: "-0.02em", mb: 3 }}>

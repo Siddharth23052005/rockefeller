@@ -1,8 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from beanie import PydanticObjectId
 from app.core.database import init_db, close_db
+from app.core.security import decode_token
 from app.api.routes.auth          import router as auth_router
 from app.api.routes.zones         import router as zones_router
 from app.api.routes.alerts        import router as alerts_router
@@ -11,8 +13,12 @@ from app.api.routes.crack_reports import router as crack_reports_router
 from app.api.routes.blast_events  import router as blast_events_router
 from app.api.routes.weather       import router as weather_router
 from app.api.routes.rainfall      import router as rainfall_router
+from app.api.routes.notifications import router as notifications_router
+from app.api.routes.push          import router as push_router
 from app.services.ml_models import preload_models
 from app.services.forecast_runner import run_daily_risk_forecast
+from app.websocket.manager import ws_manager
+from app.models.user import User
 import os
 
 @asynccontextmanager
@@ -67,6 +73,44 @@ app.include_router(crack_reports_router)
 app.include_router(blast_events_router)
 app.include_router(weather_router)
 app.include_router(rainfall_router)
+app.include_router(notifications_router)
+app.include_router(push_router)
+
+
+@app.websocket("/ws/{user_id}")
+async def user_notifications_ws(websocket: WebSocket, user_id: str):
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4401)
+        return
+
+    payload = decode_token(token)
+    if not payload:
+        await websocket.close(code=4401)
+        return
+
+    try:
+        auth_user = await User.get(PydanticObjectId(payload.get("sub")))
+    except Exception:
+        await websocket.close(code=4401)
+        return
+
+    if not auth_user:
+        await websocket.close(code=4401)
+        return
+
+    if str(auth_user.id) != user_id and auth_user.role != "admin":
+        await websocket.close(code=4403)
+        return
+
+    await ws_manager.connect(user_id, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await ws_manager.disconnect(user_id, websocket)
+    except Exception:
+        await ws_manager.disconnect(user_id, websocket)
 
 @app.get("/api/health")
 async def health():

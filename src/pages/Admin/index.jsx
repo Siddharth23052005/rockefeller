@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Alert, Snackbar } from "@mui/material";
 import api from "../../api/axios";
 import { fetchZones } from "../../api/zones";
 import Skeleton from "react-loading-skeleton";
@@ -40,6 +41,9 @@ export default function AdminPage() {
   const [users,    setUsers]    = useState([]);
   const [zones,    setZones]    = useState([]);
   const [alerts,   setAlerts]   = useState([]);
+  const [pendingCracks, setPendingCracks] = useState([]);
+  const [crackActionLoading, setCrackActionLoading] = useState(null);
+  const [snackbar, setSnackbar] = useState(null);
   const [loading,  setLoading]  = useState(true);
 
   // Users table state
@@ -62,14 +66,16 @@ export default function AdminPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: usersData }, zoneList, { data: alertData }] = await Promise.all([
+      const [{ data: usersData }, zoneList, { data: alertData }, { data: crackData }] = await Promise.all([
         api.get("/api/users"),
         fetchZones().catch(() => []),
         api.get("/api/alerts").catch(() => ({ data: [] })),
+        api.get("/api/crack-reports", { params: { status: "pending" } }).catch(() => ({ data: [] })),
       ]);
       setUsers(usersData ?? []);
       setZones(zoneList  ?? []);
       setAlerts(alertData ?? []);
+      setPendingCracks(crackData ?? []);
     } finally { setLoading(false); }
   }, []);
 
@@ -150,6 +156,32 @@ export default function AdminPage() {
       setModal(null);
     } catch { /* toast */ }
     finally { setDeleting(false); }
+  };
+
+  const handleVerifyCrack = async (reportId) => {
+    setCrackActionLoading(`${reportId}:verify`);
+    try {
+      await api.patch(`/api/crack-reports/${reportId}/verify`);
+      setPendingCracks((prev) => prev.filter((r) => r.id !== reportId));
+      setSnackbar({ type: "success", message: "Crack report verified and alert sent." });
+    } catch {
+      setSnackbar({ type: "error", message: "Failed to verify crack report." });
+    } finally {
+      setCrackActionLoading(null);
+    }
+  };
+
+  const handleRejectCrack = async (reportId) => {
+    setCrackActionLoading(`${reportId}:reject`);
+    try {
+      await api.patch(`/api/crack-reports/${reportId}/reject`);
+      setPendingCracks((prev) => prev.filter((r) => r.id !== reportId));
+      setSnackbar({ type: "success", message: "Crack report rejected and submitter notified." });
+    } catch {
+      setSnackbar({ type: "error", message: "Failed to reject crack report." });
+    } finally {
+      setCrackActionLoading(null);
+    }
   };
 
   // system stats
@@ -259,6 +291,108 @@ export default function AdminPage() {
                 )}
               </div>
             ))}
+          </div>
+
+          <div style={{
+            background: "rgba(42,42,42,0.6)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(91,64,62,0.15)",
+            borderRadius: 4,
+            padding: "18px 20px",
+            marginBottom: 24,
+            animation: "adFadeUp 0.4s ease 0.08s both",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <SectionTitle>Pending Crack Reports</SectionTitle>
+              <span style={{ fontSize: 10, color: "#e4beba", opacity: 0.6 }}>
+                {pendingCracks.length} pending
+              </span>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(91,64,62,0.15)" }}>
+                    {["Zone", "Crack Type", "Severity", "Submitted By", "Submitted", "Photo", "Actions"].map((h) => (
+                      <th key={h} style={{ textAlign: "left", padding: "8px 10px", fontSize: 9, color: "#e4beba", opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingCracks.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ padding: "16px 10px", color: "#9f9a99", fontSize: 12 }}>
+                        No pending crack reports.
+                      </td>
+                    </tr>
+                  )}
+                  {pendingCracks.map((row) => (
+                    <tr key={row.id} style={{ borderBottom: "1px solid rgba(91,64,62,0.08)" }}>
+                      <td style={{ padding: "10px", color: "#e5e2e1", fontSize: 12 }}>{row.zone_name || "-"}</td>
+                      <td style={{ padding: "10px", color: "#e4beba", fontSize: 11 }}>{(row.crack_type || "-").replace(/_/g, " ")}</td>
+                      <td style={{ padding: "10px" }}>
+                        <span style={{
+                          fontSize: 9,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                          color: row.severity === "critical" ? "#ff5451" : row.severity === "high" ? "#ffb95f" : "#4edea3",
+                          background: "rgba(255,255,255,0.06)",
+                          borderRadius: 2,
+                          padding: "3px 7px",
+                        }}>
+                          {row.severity || "low"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px", color: "#e5e2e1", fontSize: 11 }}>{row.reported_by || "-"}</td>
+                      <td style={{ padding: "10px", color: "#9f9a99", fontSize: 10 }}>{timeAgo(row.created_at)}</td>
+                      <td style={{ padding: "10px" }}>
+                        {row.photo_url ? (
+                          <img src={row.photo_url} alt="crack" style={{ width: 44, height: 32, objectFit: "cover", borderRadius: 2 }} />
+                        ) : (
+                          <span style={{ color: "#777", fontSize: 10 }}>No photo</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px", display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => handleVerifyCrack(row.id)}
+                          disabled={crackActionLoading === `${row.id}:verify`}
+                          style={{
+                            background: "rgba(78,222,163,0.16)",
+                            color: "#4edea3",
+                            border: "1px solid rgba(78,222,163,0.4)",
+                            borderRadius: 2,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: "6px 10px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {crackActionLoading === `${row.id}:verify` ? "Verifying..." : "Verify"}
+                        </button>
+                        <button
+                          onClick={() => handleRejectCrack(row.id)}
+                          disabled={crackActionLoading === `${row.id}:reject`}
+                          style={{
+                            background: "rgba(255,84,81,0.14)",
+                            color: "#ff5451",
+                            border: "1px solid rgba(255,84,81,0.4)",
+                            borderRadius: 2,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: "6px 10px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {crackActionLoading === `${row.id}:reject` ? "Rejecting..." : "Reject"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* ── Main grid: System Overview + Users ── */}
@@ -903,6 +1037,21 @@ export default function AdminPage() {
           </div>
         </Modal>
       )}
+
+      <Snackbar
+        open={!!snackbar}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+      >
+        <Alert
+          severity={snackbar?.type || "success"}
+          variant="filled"
+          onClose={() => setSnackbar(null)}
+        >
+          {snackbar?.message || "Done"}
+        </Alert>
+      </Snackbar>
 
       <style>{CSS}</style>
     </div>
