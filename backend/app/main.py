@@ -19,6 +19,7 @@ from app.api.routes.emergency     import router as emergency_router
 from app.api.routes.presence      import router as presence_router
 from app.api.routes.history       import router as history_router
 from app.services.ml_models import preload_models
+from app.services.crack_ai import preload_crack_model
 from app.services.forecast_runner import run_daily_risk_forecast
 from app.websocket.manager import ws_manager
 from app.models.user import User
@@ -31,9 +32,7 @@ async def lifespan(app: FastAPI):
     # Pull latest real-world data on every startup
     try:
         from app.ml.collectors.imd_collector  import run as imd_run
-        from app.ml.collectors.ndma_collector import run as ndma_run
         await imd_run()
-        await ndma_run()
     except Exception as e:
         print(f"[Startup] Collector error (non-fatal): {e}")
 
@@ -43,6 +42,12 @@ async def lifespan(app: FastAPI):
         print("[Startup] Rockefeller models loaded ✅")
     except Exception as e:
         print(f"[Startup] Rockefeller model preload failed (non-fatal): {e}")
+
+    try:
+        preload_crack_model()
+        print("[Startup] Crack classifier model loaded ✅")
+    except Exception as e:
+        print(f"[Startup] Crack classifier preload failed (non-fatal): {e}")
 
     try:
         rows = await run_daily_risk_forecast()

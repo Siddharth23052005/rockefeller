@@ -79,6 +79,14 @@ Mining incidents are rarely caused by one signal. Rockefeller brings multiple si
 - dataset/: model files and data assets
 - uploads/: report and crack-report media storage
 
+## Model Artifacts
+
+- `model1_best_phase2.keras` is a large local artifact used by the crack classifier service.
+- It is intentionally gitignored and should not be committed.
+- Supported local paths:
+	- `backend/dataset/model1_best_phase2.keras`
+	- `dataset/model1_best_phase2.keras`
+
 ## Prerequisites
 
 - Node.js 18 or newer

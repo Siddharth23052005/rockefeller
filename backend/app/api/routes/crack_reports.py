@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Form
 from typing import Optional, List
 from datetime import datetime
-import os, shutil, uuid
+import os, uuid
 import re
 from app.models.crack_report import CrackReport
 from app.models.alert import Alert, TriggerSource
@@ -13,6 +13,7 @@ from app.core.rule_engine import run_crack_check
 from app.core.config import settings
 from app.models.user import User
 from app.services.notification_service import create_notifications_for_users
+from app.services.crack_ai import score_crack_image
 
 router = APIRouter(prefix="/api/crack-reports", tags=["crack-reports"])
 
@@ -155,6 +156,8 @@ def crack_to_dict(c: CrackReport) -> dict:
         "severity":          c.severity,
         "ai_severity_class": c.ai_severity_class,
         "ai_risk_score":     c.ai_risk_score,
+        "confidence":        c.confidence,
+        "critical_crack_flag": c.critical_crack_flag,
         "photo_url":         c.photo_url,
         "status":            c.status,
         "reported_by":       c.reported_by,
@@ -191,10 +194,9 @@ async def create_crack_report(
     zone_id:     str        = Form(...),
     crack_type:  str        = Form("other"),
     severity:    str        = Form("medium"),
-    crack_score: Optional[float] = Form(None),
     remarks:     str        = Form(""),
     reported_by: str        = Form(""),
-    photo:       UploadFile = File(None),
+    photo:       UploadFile = File(...),
     current_user: User      = Depends(get_current_user),
 ):
     zone = await _resolve_zone(zone_id)
@@ -204,20 +206,27 @@ async def create_crack_report(
     # Normalize crack_type to valid enum value
     normalized_type = CRACK_TYPE_MAP.get(crack_type.lower(), "other")
 
-    # Save photo if provided
-    photo_url = None
-    if photo and photo.filename:
-        ext      = os.path.splitext(photo.filename)[1]
-        filename = f"{uuid.uuid4()}{ext}"
-        dest     = os.path.join(settings.UPLOAD_DIR, "crack_reports", filename)
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
-        with open(dest, "wb") as f:
-            shutil.copyfileobj(photo.file, f)
-        photo_url = f"/uploads/crack_reports/{filename}"
+    if not photo.filename:
+        raise HTTPException(status_code=400, detail="Photo is required")
 
-    # Use provided crack_score when available, otherwise map severity.
-    severity_score_map = {"low": 0.2, "medium": 0.45, "high": 0.65, "critical": 0.85}
-    ai_risk_score = float(crack_score) if crack_score is not None else severity_score_map.get(severity.lower(), 0.3)
+    photo_bytes = await photo.read()
+    if not photo_bytes:
+        raise HTTPException(status_code=400, detail="Photo is empty")
+
+    try:
+        ai_result = score_crack_image(photo_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid crack image: {exc}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Crack AI inference failed: {exc}")
+
+    ext = os.path.splitext(photo.filename)[1] or ".jpg"
+    filename = f"{uuid.uuid4()}{ext}"
+    dest = os.path.join(settings.UPLOAD_DIR, "crack_reports", filename)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "wb") as f:
+        f.write(photo_bytes)
+    photo_url = f"/uploads/crack_reports/{filename}"
 
     report = CrackReport(
         zone_id           = str(zone.id),
@@ -225,24 +234,20 @@ async def create_crack_report(
         reported_by       = reported_by or current_user.name,
         reporter_user_id  = str(current_user.id),
         crack_type        = normalized_type,
-        severity          = severity,
-        ai_severity_class = severity,
-        ai_risk_score     = ai_risk_score,
+        severity          = ai_result["ai_severity_class"],
+        ai_severity_class = ai_result["ai_severity_class"],
+        ai_risk_score     = ai_result["ai_risk_score"],
+        confidence        = ai_result["confidence"],
+        critical_crack_flag = ai_result["critical_crack_flag"],
         photo_url         = photo_url,
         remarks           = remarks,
-        status            = "pending",
+        status            = "ai_scored",
         created_at        = datetime.utcnow(),
     )
     await report.insert()
 
     # Trigger Model 2 zone risk update based on fresh crack report.
-    await run_crack_check(str(zone.id), ai_risk_score)
-
-    refreshed_zone = await Zone.get(str(zone.id))
-    if refreshed_zone:
-        report.ai_risk_score = refreshed_zone.risk_score
-        report.ai_severity_class = refreshed_zone.risk_level
-        await report.save()
+    await run_crack_check(str(zone.id), float(ai_result["ai_risk_score"]))
 
     return crack_to_dict(report)
 

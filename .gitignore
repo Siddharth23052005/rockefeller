@@ -24,6 +24,7 @@ venv/
 # Backend runtime/generated files
 backend/uploads/
 
+
 # Logs and temp files
 *.log
 *.tmp
@@ -33,3 +34,4 @@ backend/uploads/
 Thumbs.db
 .idea/
 .vscode/
+

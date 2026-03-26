@@ -39,6 +39,8 @@ class CrackReport(Document):
     severity: str = "low"
     ai_severity_class: Optional[str] = None      # ML fills later
     ai_risk_score: Optional[float] = None        # ML fills later
+    confidence: Optional[float] = None
+    critical_crack_flag: Optional[int] = 0
     remarks: Optional[str] = None
     engineer_action: Optional[EngineerAction] = None
     reviewed_by: Optional[str] = None

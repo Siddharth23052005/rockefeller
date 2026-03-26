@@ -118,7 +118,7 @@ export default function ReportDetailsPage() {
           textTransform: "uppercase",
         }}
       >
-        <- Back to Reports
+        {"Back to Reports"}
       </button>
 
       <div
