@@ -8,15 +8,15 @@ from beanie import init_beanie
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.models.user import User, UserRole
-from app.models.zone import Zone
-from app.models.alert import Alert
-from app.models.report import Report
-from app.models.crack_report import CrackReport
-from app.models.weather_record import WeatherRecord
-from app.models.history import HistoricalLandslide
-from app.core.security import hash_password
-from app.core.config import settings
+from backend.app.models.user import User, UserRole
+from backend.app.models.zone import Zone
+from backend.app.models.alert import Alert
+from backend.app.models.report import Report
+from backend.app.models.crack_report import CrackReport
+from backend.app.models.weather_record import WeatherRecord
+from backend.app.models.history import HistoricalLandslide
+from backend.app.core.security import hash_password
+from backend.app.core.config import settings
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
