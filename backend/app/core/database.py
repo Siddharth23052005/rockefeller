@@ -22,7 +22,7 @@ client = None
 async def init_db():
     global client
     client = AsyncIOMotorClient(settings.MONGODB_URL)
-    db = client[settings.DATABASE_NAME]
+    db = client.get_database(settings.DATABASE_NAME)
     await init_beanie(
         database=db,
         document_models=[
