@@ -47,7 +47,11 @@ const TABS = ["active", "acknowledged", "resolved"];
 export default function AlertsPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const canManage = ["admin", "safety_officer"].includes(currentUser?.role);
+  const isFieldWorker = currentUser?.role === "field_worker";
+  const canAcknowledge = ["admin", "safety_officer"].includes(currentUser?.role);
   const canBroadcast = ["admin", "safety_officer"].includes(currentUser?.role);
+  const canResolve = currentUser?.role === "admin";
 
   const [alerts,      setAlerts]      = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -100,6 +104,7 @@ export default function AlertsPage() {
   };
 
   const doBatchAcknowledge = async () => {
+    if (!canManage) return;
     for (const id of selected) await acknowledgeAlert(id).catch(() => {});
     setSelected(new Set());
     setBulkMode(false);
@@ -151,6 +156,8 @@ export default function AlertsPage() {
   counts.active = tab === "active" ? visible.length : counts.active;
 
   // ── Render ─────────────────────────────────────────────────
+  const safeBulkMode = canManage ? bulkMode : false;
+
   return (
   <div
     style={{
@@ -287,6 +294,7 @@ export default function AlertsPage() {
             </div>
 
             {/* Bulk actions */}
+            {canManage && (
             <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 4 }}>
               <label style={{
                 display: "flex", alignItems: "center", gap: 8,
@@ -320,8 +328,24 @@ export default function AlertsPage() {
                 Batch Acknowledge {selected.size > 0 ? `(${selected.size})` : ""}
               </button>
             </div>
+            )}
           </div>
         </section>
+
+        {isFieldWorker && (
+          <div style={{
+            marginBottom: 14,
+            background: "rgba(78,222,163,0.08)",
+            border: "1px solid rgba(78,222,163,0.2)",
+            borderRadius: 2,
+            padding: "10px 14px",
+            color: "#4edea3",
+            fontSize: 11,
+            letterSpacing: "0.04em",
+          }}>
+            Read-only alerts view. Acknowledge, resolve, and emergency actions are restricted to officers/admin.
+          </div>
+        )}
 
         {/* ── Loading skeleton ── */}
         {loading && (
@@ -361,13 +385,16 @@ export default function AlertsPage() {
               idx={idx}
               expanded={expanded === alert.id}
               onToggleExpand={() => setExpanded(p => p === alert.id ? null : alert.id)}
-              bulkMode={bulkMode}
+              bulkMode={safeBulkMode}
               selected={selected.has(alert.id)}
               onSelect={() => toggleSelect(alert.id)}
               onAcknowledge={(e) => doAcknowledge(alert.id, e)}
               onResolve={(e)     => doResolve(alert.id, e)}
               onEmergency={(e)   => doEmergencyBroadcast(alert, e)}
+              canAcknowledge={canAcknowledge}
               canBroadcast={canBroadcast}
+              canResolve={canResolve}
+              canManage={canManage}
               ackLoading={actionLoading === alert.id + "_ack"}
               resLoading={actionLoading === alert.id + "_res"}
               emgLoading={actionLoading === alert.id + "_emg"}
@@ -423,7 +450,7 @@ export default function AlertsPage() {
 function AlertCard({
   alert, idx, expanded, onToggleExpand,
   bulkMode, selected, onSelect,
-  onAcknowledge, onResolve, onEmergency, canBroadcast, ackLoading, resLoading, emgLoading,
+  onAcknowledge, onResolve, onEmergency, canAcknowledge, canBroadcast, canResolve, canManage, ackLoading, resLoading, emgLoading,
 }) {
   const risk    = RISK[alert.risk_level] ?? RISK.green;
   const isCrit  = alert.risk_level === "red";
@@ -575,9 +602,10 @@ function AlertCard({
                 </span>
               </div>
 
+              {canManage ? (
               <div style={{ display: "flex", gap: 8 }}>
                 {/* Acknowledge */}
-                {alert.status === "active" && (
+                {canAcknowledge && alert.status === "active" && (
                   <ActionBtn
                     onClick={onAcknowledge}
                     loading={ackLoading}
@@ -586,7 +614,7 @@ function AlertCard({
                   />
                 )}
                 {/* Resolve */}
-                {(alert.status === "active" || alert.status === "acknowledged") && (
+                {canResolve && (alert.status === "active" || alert.status === "acknowledged") && (
                   <ActionBtn
                     onClick={onResolve}
                     loading={resLoading}
@@ -615,6 +643,17 @@ function AlertCard({
                   </span>
                 )}
               </div>
+              ) : (
+              <div style={{
+                fontSize: 10,
+                color: "#e4beba",
+                opacity: 0.75,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}>
+                Read-only
+              </div>
+              )}
             </div>
 
             {/* Expand toggle */}

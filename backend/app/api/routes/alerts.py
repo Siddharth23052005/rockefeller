@@ -3,7 +3,7 @@ from typing import Optional
 from datetime import datetime
 from app.models.alert import Alert
 from app.schemas.alert import CreateAlertRequest
-from app.api.dependencies import get_current_user, require_officer
+from app.api.dependencies import get_current_user, require_officer, require_admin
 from app.models.user import User
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
@@ -93,11 +93,11 @@ async def acknowledge_alert(
     await alert.save()
     return alert_to_dict(alert)
 
-# 🔒 Only safety_officer / admin can resolve
+# 🔒 Only admin can resolve
 @router.patch("/{alert_id}/resolve")
 async def resolve_alert(
     alert_id: str,
-    current_user: User = Depends(require_officer),
+    current_user: User = Depends(require_admin),
 ):
     alert = await Alert.get(alert_id)
     if not alert:

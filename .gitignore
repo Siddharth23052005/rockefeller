@@ -38,3 +38,6 @@ Thumbs.db
 # Local frontend overrides
 .env.local
 
+# One-time data migration script (intentionally disabled)
+backend/scripts/sync_frontend_data.py
+

@@ -199,7 +199,12 @@ Frontend API calls read this through `src/config/api.js`.
 | GET    | /api/alerts | Active / historical alerts |
 | POST   | /api/alerts | Create manual alert (officer) |
 | PATCH  | /api/alerts/{id}/acknowledge | Acknowledge |
-| PATCH  | /api/alerts/{id}/resolve | Resolve |
+| PATCH  | /api/alerts/{id}/resolve | Resolve (admin only) |
+
+Frontend role behavior for alerts:
+- Field worker: read-only alerts view (no acknowledge/resolve/emergency controls)
+- Safety officer: acknowledge + emergency controls
+- Admin: acknowledge + resolve + emergency controls
 
 ### Reports and Images
 | Method | Path | Description |
