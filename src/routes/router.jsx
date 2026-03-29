@@ -10,6 +10,7 @@ import CrackReports from "../pages/CrackReports";
 import Alerts from "../pages/Alerts";
 import Reports from "../pages/Reports";
 import ReportDetailsPage from "../pages/ReportDetails";
+import CrackReportDetailsPage from "../pages/CrackReportDetails";
 import Analytics from "../pages/Analytics";
 import Admin from "../pages/Admin";
 import Profile from "../pages/Profile";
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
       { path: "zones/:id",        element: <ZoneDetails /> },
       { path: "alerts",           element: <Alerts /> },
       { path: "crack-reports",    element: <CrackReports /> },
+      { path: "crack-reports/:id", element: <CrackReportDetailsPage /> },
       { path: "reports",          element: <Reports /> },
       { path: "reports/:id",      element: <ReportDetailsPage /> },
       { path: "analytics",        element: <Analytics /> },

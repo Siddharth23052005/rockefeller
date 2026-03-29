@@ -169,6 +169,16 @@ def crack_to_dict(c: CrackReport) -> dict:
     }
 
 
+def _is_critical_report(report: CrackReport) -> bool:
+    if (report.severity or "").lower() == "critical":
+        return True
+    if (report.ai_severity_class or "").lower() in {"critical", "high"}:
+        return True
+    if int(report.critical_crack_flag or 0) == 1:
+        return True
+    return float(report.ai_risk_score or 0.0) >= 0.7
+
+
 async def _notify_admins_new_crack(
     report: CrackReport,
     *,
@@ -447,4 +457,50 @@ async def reject_crack_report(
     return {
         "report": crack_to_dict(report),
         "notified_users": notified,
+    }
+
+
+@router.patch("/{report_id}/notify-critical")
+async def notify_critical_crack_report(
+    report_id: str,
+    current_user: User = Depends(require_admin),
+):
+    report = await _get_report_or_error(report_id)
+
+    if not _is_critical_report(report):
+        raise HTTPException(status_code=400, detail="Report is not in critical threshold")
+
+    zone = await _resolve_zone(report.zone_id, report.zone_name)
+    if not zone:
+        raise HTTPException(status_code=404, detail="Zone not found")
+
+    legacy_zone_code = await _legacy_zone_code_for(zone)
+    worker_zone_refs = {
+        ref
+        for ref in (str(zone.id), zone.name, report.zone_id, report.zone_name, legacy_zone_code)
+        if ref
+    }
+
+    candidate_workers = await User.find(User.role == "field_worker").to_list()
+    workers = [w for w in candidate_workers if w.zone_assigned in worker_zone_refs]
+    worker_ids = [str(worker.id) for worker in workers]
+
+    if worker_ids:
+        await create_notifications_for_users(
+            worker_ids,
+            title="Critical Crack Warning",
+            message=(
+                f"{zone.name}: critical crack condition detected. "
+                "Move to safety zone and wait for further instructions."
+            ),
+            zone_id=str(zone.id),
+            zone_name=zone.name,
+            notif_type=NotificationType.alert,
+            send_push=True,
+        )
+
+    return {
+        "report": crack_to_dict(report),
+        "notified_users": len(worker_ids),
+        "zone_name": zone.name,
     }

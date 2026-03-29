@@ -1,209 +1,365 @@
-# Rockefeller App Build Blueprint
+# Rockefeller Flutter App Integration Blueprint
 
 ## Build Directive
 
-Use this document as implementation guidance for ongoing app development.
-Operational flows must use real backend APIs, authenticated requests, and existing project patterns.
+This file is the implementation guide for the Flutter mobile app.
+Use the backend API as the single source of truth for all production data.
+Do not keep separate mock models for live features.
 
 ## Product Mission
 
-Rockefeller enables mine operations teams to detect risk early, coordinate responses quickly, and maintain traceable decision history.
+Rockefeller helps mine teams detect hazards early, submit field incidents quickly, and coordinate response with full traceability.
 
 Core pillars:
 - Monitoring
 - Incident capture
-- Escalation and communication
+- Escalation and notifications
 - Forecast-aware planning
-- Historical pattern analysis
+- Historical analysis
 
-## Required Stack
+## Flutter Stack (Recommended)
 
-### Frontend
-- React + Vite
-- Material UI
-- React Router
-- Recharts
-- React Leaflet
-- Axios
+- Flutter 3.22+
+- Dart 3+
+- dio for REST calls
+- flutter_secure_storage for token storage
+- riverpod or bloc for state management
+- go_router for routing
+- websocket_channel for realtime notifications
+- json_serializable or freezed for typed models
 
-### Backend
-- FastAPI
-- Beanie + MongoDB
-- JWT auth
-- WebSocket realtime channel
-- Web Push with VAPID
-- ML-enabled forecasting and risk components
+## Backend Connection
 
-## Source-of-Truth Rule
+Use these base URLs:
 
-Use backend data as the default source for all operational views.
-Do not rely on mock data for production behavior when an API exists.
+- Local backend: http://localhost:8000
+- Railway backend: https://rockefeller-production.up.railway.app
 
-API base URL:
-- http://localhost:8000
+Health check:
+- GET /api/health
 
-## Mandatory User Flows
+Expected response:
 
-### 1. Auth and Session
-- Login via API
-- Persist token safely in frontend state strategy
-- Rehydrate user state on app startup
-- Protect routes by role and auth status
+```json
+{
+	"status": "ok",
+	"version": "2.0.0"
+}
+```
 
-### 2. Crack Report Lifecycle
-- Worker submits crack report (optionally with photo)
-- Admin or officer verifies or rejects
-- Verify action must trigger alert and notification fan-out
-- Reject action must inform submitter
+## Auth Integration
 
-### 3. Alerts Lifecycle
-- Show alerts with status and severity
-- Support acknowledge and resolve transitions where permitted
-- Reflect latest state without stale UI
-
-### 4. Notification Experience
-- Header bell with unread badge
-- Drawer list with read and unread visual state
-- Mark single and mark all actions
-- Realtime insertion on websocket events
-- Optional toast for immediate awareness
-
-### 5. Realtime and Push
-- WebSocket connect per user with token
-- Auto reconnect on disconnect
-- Push subscription registration through backend VAPID key
-- Graceful fallback when push permission is denied
-
-### 6. Blast and Compliance
-- Blast event logging from field workflows
-- Include PPV and context fields
-- Trigger risk re-evaluation when thresholds are exceeded
-
-### 7. Emergency Response
-- Admin emergency broadcast endpoint usage
-- Worker-facing high-visibility alert presentation
-- Integrate with current worker presence when available
-
-### 8. Worker Presence
-- Check-in and check-out operations
-- Headcount visibility for admin decisions
-- Accurate inside or outside state transitions
-
-### 9. Forecast and Risk Intelligence
-- Zone forecast integration using backend endpoints
-- Rainfall forecast blocks with short horizon view
-- Zone risk flags based on rainfall plus terrain cues
-
-### 10. Analytics and Strategy
-- Zone comparison tool for side-by-side metrics
-- Trend charts for incidents and risk evolution
-
-### 11. Historical Replay
-- Historical landslide retrieval
-- Replay controls by year and timeline selection
-- Map highlight behavior tied to replay data
-
-### 12. Reports Detail Continuity
-- Reports list must navigate to dedicated detail route
-- Detail page should surface report metadata, remarks, and contextual zone data
-
-## Required Frontend Areas
-
-- Dashboard
-- Map View
-- Zone Details
-- Alerts
-- Crack Reports
-- Reports
-- Report Details
-- Analytics
-- IoT Sensors
-- Field Report
-- Profile
-- Admin
-
-## API Coverage Reference
-
-### Auth
+Login endpoint:
 - POST /api/auth/login
-- GET /api/auth/me
 
-### Zones and Forecast
+Request:
+
+```json
+{
+	"email": "admin@geoalert.com",
+	"password": "admin123"
+}
+```
+
+Response shape:
+
+```json
+{
+	"access_token": "<jwt>",
+	"token_type": "bearer",
+	"user": {
+		"id": "...",
+		"name": "...",
+		"email": "...",
+		"role": "admin|safety_officer|field_worker",
+		"district": "...",
+		"zone_assigned": "...",
+		"avatar_url": "..."
+	}
+}
+```
+
+Token usage:
+- Add header Authorization: Bearer <token> on protected calls.
+- Rehydrate session with GET /api/auth/me on app startup.
+
+## Realtime Notifications
+
+WebSocket endpoint:
+- /ws/{user_id}?token=<jwt>
+
+Event payload shape:
+
+```json
+{
+	"event": "notification",
+	"notification": {
+		"id": "...",
+		"user_id": "...",
+		"title": "...",
+		"message": "...",
+		"zone_id": "...",
+		"zone_name": "...",
+		"type": "alert|info|warning",
+		"is_read": false,
+		"created_at": "2026-03-29T..."
+	}
+}
+```
+
+Reconnect policy:
+- Auto reconnect with backoff.
+- Re-fetch notification list after reconnect.
+
+## Backend Data Sources by Feature
+
+### Dashboard and Map
 - GET /api/zones
-- GET /api/zones/{id}
-- GET /api/zones/{zone_id}/forecast
-- GET /api/rainfall/forecast/{district}
-- GET /api/rainfall/zone-risk-flags
+- GET /api/risk-levels
+- GET /api/alerts
 
-### Incidents
+### Zone Detail
+- GET /api/zones/{id}
+- GET /api/zones/{id}/forecast
+- GET /api/alerts?zone_id={id}
+
+### Alerts
 - GET /api/alerts
 - PATCH /api/alerts/{id}/acknowledge
 - PATCH /api/alerts/{id}/resolve
-- GET /api/crack-reports
-- POST /api/crack-reports
-- PATCH /api/crack-reports/{id}/verify
-- PATCH /api/crack-reports/{id}/reject
-- POST /api/blast-events
 
-### Reports
+### Crack Reports
+- GET /api/crack-reports
+- GET /api/crack-reports/{report_id}
+- POST /api/crack-reports
+- PATCH /api/crack-reports/{report_id}/verify
+- PATCH /api/crack-reports/{report_id}/reject
+- PATCH /api/crack-reports/{report_id}/notify-critical
+
+### Field Reports
 - GET /api/reports
 - GET /api/reports/{report_id}
 - POST /api/reports
+- POST /api/reports/generate-ai-draft
 
-### Emergency and Presence
-- POST /api/emergency/broadcast
+### Presence and Emergency
 - PATCH /api/presence/me/check-in
 - PATCH /api/presence/me/check-out
 - GET /api/presence/headcount
+- POST /api/emergency/broadcast
 
-### Notifications and Push
-- GET /api/notifications
-- PATCH /api/notifications/{id}/read
-- PATCH /api/notifications/read-all
-- GET /api/push/vapid-public-key
-- POST /api/push/subscribe
-- WebSocket /ws/{user_id}?token=<jwt>
-
-### History
+### Forecast and History
+- GET /api/rainfall/forecast/{district}
+- GET /api/rainfall/zone-risk-flags
 - GET /api/history
 
-## Coding and UX Rules
+## Core Data Structure Contracts
 
-- Reuse existing API clients in src/api
-- Preserve current route and layout architecture
-- Implement loading, empty, and error states for all async screens
-- Keep role-restricted actions hidden or disabled when unauthorized
-- Keep user feedback explicit for all mutation actions
+### User (API)
+
+```json
+{
+	"id": "string",
+	"name": "string",
+	"email": "string",
+	"role": "admin|safety_officer|field_worker",
+	"district": "string|null",
+	"zone_assigned": "string|null",
+	"worker_id": "string|null",
+	"phone": "string|null",
+	"avatar_url": "string|null"
+}
+```
+
+### Zone
+
+```json
+{
+	"id": "string",
+	"name": "string",
+	"district": "string",
+	"mine_name": "string",
+	"risk_level": "green|yellow|orange|red",
+	"risk_score": 0.42,
+	"status": "monitoring|...",
+	"latlngs": []
+}
+```
+
+### Alert
+
+```json
+{
+	"id": "string",
+	"zone_id": "string",
+	"zone_name": "string",
+	"district": "string",
+	"risk_level": "green|yellow|orange|red",
+	"trigger_reason": "string",
+	"status": "active|acknowledged|resolved",
+	"created_at": "ISO timestamp"
+}
+```
+
+### Crack Report
+
+```json
+{
+	"id": "string",
+	"zone_id": "string",
+	"zone_name": "string",
+	"reported_by": "string",
+	"crack_type": "string",
+	"severity": "low|moderate|high|critical",
+	"ai_severity_class": "string|null",
+	"ai_risk_score": 0.6,
+	"confidence": 0.87,
+	"critical_crack_flag": 0,
+	"photo_url": "/uploads/crack_reports/<file>",
+	"status": "pending|ai_scored|verified|rejected|reviewed|closed",
+	"created_at": "ISO timestamp"
+}
+```
+
+### Field Report
+
+```json
+{
+	"id": "string",
+	"zone_id": "string",
+	"zone_name": "string",
+	"reported_by": "string",
+	"photo_url": "/uploads/reports/<file>|null",
+	"severity": "low|medium|high|critical",
+	"remarks": "string|null",
+	"review_status": "pending|reviewed|false_alarm|critical",
+	"created_at": "ISO timestamp"
+}
+```
+
+## Multipart Submission Structures
+
+### Crack report submission
+
+Endpoint:
+- POST /api/crack-reports
+
+Form fields:
+- zone_id (required)
+- crack_type
+- severity
+- remarks
+- submission_mode (ai or admin)
+- coords (json string optional)
+- photo (required)
+
+AI mode returns ai_summary with fields:
+
+```json
+{
+	"ai_severity_class": "high",
+	"ai_risk_score": 0.60,
+	"confidence": 0.87,
+	"critical_crack_flag": 0,
+	"note": "AI score generated and forwarded to admin review queue."
+}
+```
+
+### Field report submission
+
+Endpoint:
+- POST /api/reports
+
+Form fields:
+- zone_id (required)
+- severity
+- remarks
+- reported_by
+- photo (optional)
+
+## AI Draft Generation for Field Report
+
+Endpoint:
+- POST /api/reports/generate-ai-draft
+
+Request body:
+
+```json
+{
+	"zone_id": "...",
+	"zone_name": "...",
+	"report_type": "visual_inspection",
+	"severity": "medium",
+	"title": "...",
+	"description": "...",
+	"observations": "...",
+	"location_detail": "...",
+	"weather_condition": "cloudy"
+}
+```
+
+Response body:
+
+```json
+{
+	"draft": {
+		"title": "...",
+		"description": "...",
+		"observations": "...",
+		"remarks": "...",
+		"severity": "low|medium|high|critical",
+		"source": "gemini|fallback"
+	},
+	"generated_at": "ISO timestamp",
+	"generated_for": "User Name"
+}
+```
+
+## Error Handling Contract
+
+Most backend errors return:
+
+```json
+{
+	"detail": "Error message"
+}
+```
+
+Flutter UI requirements:
+- Show actionable error text from detail.
+- Retry option for network failures.
+- Handle 401 by clearing token and redirecting to login.
+- Handle 403 by showing permission message.
 
 ## Security and Reliability Rules
 
-- Require auth for protected operations
-- Enforce role checks server side, never frontend only
-- Never expose private push credentials in client code
-- Recover from websocket interruptions automatically
-- Keep UI functional even during partial backend outages
+- Never store JWT in shared preferences plain text.
+- Use secure storage for token.
+- Enforce role checks server side, not just client UI.
+- Reconnect websocket automatically on disconnect.
+- Keep screens usable when one API call fails (partial rendering).
 
-## Environment Configuration
+## Backend Environment Requirements
 
-Backend .env should define:
+Backend .env must include at least:
 - MONGODB_URL
 - DATABASE_NAME
 - SECRET_KEY
 - ALGORITHM
+- CORS_ORIGINS
+- GEMINI_API_KEY
+- GEMINI_MODEL
 - VAPID_PUBLIC_KEY
 - VAPID_PRIVATE_KEY
 - VAPID_CLAIMS_SUBJECT
 
-## Acceptance Checklist
+## Flutter Delivery Checklist
 
-- Worker can submit crack report
-- Admin or officer can verify or reject
-- Verification creates alert and recipient notifications
-- Realtime updates appear without full page refresh
-- Push notifications work for subscribed clients
-- Emergency broadcast reaches intended workers
-- Presence check-in affects headcount outputs
-- Zone details show forecast-backed context
-- Analytics provides comparison workflow
-- Map supports historical replay
-- Reports list opens functional full report detail page
+- Login and session restore works.
+- Zone list, alerts, crack reports, field reports load from backend.
+- Crack submission supports both modes (ai and admin).
+- Admin can open crack detail and perform review actions.
+- Critical notify action works from crack review.
+- Field report AI draft generation fills form.
+- Websocket notifications appear in app without refresh.
+- All protected endpoints send bearer token.

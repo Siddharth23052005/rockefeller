@@ -211,6 +211,7 @@ Frontend API calls read this through `src/config/api.js`.
 | GET    | /api/crack-reports | Crack reports |
 | POST   | /api/crack-reports | Submit crack report with `submission_mode=ai` or `submission_mode=admin` |
 | PATCH  | /api/crack-reports/{id}/verify | Verify (admin) |
+| PATCH  | /api/crack-reports/{id}/notify-critical | Send critical crack notification to assigned workers |
 | PATCH  | /api/crack-reports/{id}/reject | Reject (admin) |
 
 ### Blast Events
