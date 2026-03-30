@@ -29,8 +29,16 @@ class Zone(Document):
     last_landslide: Optional[str] = None
     blast_count_7d: int = 0
     recent_rainfall: Optional[float] = None
+    soil_saturation_index: float = 0.1
     last_updated: datetime = datetime.utcnow()
     created_at: datetime = datetime.utcnow()
 
     class Settings:
         name = "zones"
+        indexes = [
+            "district",
+            "risk_level",
+            "status",
+            "last_updated",
+            [("district", 1), ("risk_level", 1)],
+        ]

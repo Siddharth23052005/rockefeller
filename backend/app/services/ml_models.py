@@ -3,8 +3,10 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 from typing import Any
+from datetime import datetime, timedelta
 
 import numpy as np
+from app.models.blast_event import BlastEvent
 
 FEATURES = [
     "blast_count_7d",
@@ -112,7 +114,22 @@ def _score_to_label(score: float) -> str:
     return "green"
 
 
-def predict_zone_risk(
+async def _get_live_blast_features(zone_id: str) -> tuple[int, float]:
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    recent = await BlastEvent.find(
+        BlastEvent.zone_id == str(zone_id),
+        BlastEvent.blast_date >= cutoff,
+    ).to_list()
+
+    blast_count = len(recent)
+    avg_intensity = (
+        sum(float(row.intensity or 0) for row in recent) / blast_count
+        if blast_count else 0.0
+    )
+    return blast_count, round(avg_intensity, 2)
+
+
+async def predict_zone_risk(
     blast_count_7d: int,
     avg_blast_intensity: float,
     rainfall_mm_24h: float,
@@ -124,9 +141,15 @@ def predict_zone_risk(
     area_sq_km: float,
     days_since_inspection: int,
     is_monsoon: int,
+    zone_id: str | None = None,
 ) -> dict[str, float | str]:
     if "m2" not in _models:
         preload_models()
+
+    if zone_id:
+        live_count, live_avg = await _get_live_blast_features(zone_id)
+        blast_count_7d = live_count
+        avg_blast_intensity = live_avg
 
     features = np.array(
         [[
@@ -192,7 +215,7 @@ def get_tomorrow_rainfall(district: str) -> float:
     return float(prediction["forecast"][0]["rainfall_mm"])
 
 
-def check_blast_anomaly(intensity: float, depth_m: float, blasts_per_week: float) -> dict[str, Any]:
+def predict_blast_anomaly(intensity: float, depth_m: float, blasts_per_week: float) -> dict[str, Any]:
     if "m4" not in _models:
         preload_models()
 
@@ -212,3 +235,7 @@ def check_blast_anomaly(intensity: float, depth_m: float, blasts_per_week: float
         "anomaly_score": round(score, 4),
         "severity": severity,
     }
+
+
+def check_blast_anomaly(intensity: float, depth_m: float, blasts_per_week: float) -> dict[str, Any]:
+    return predict_blast_anomaly(intensity=intensity, depth_m=depth_m, blasts_per_week=blasts_per_week)

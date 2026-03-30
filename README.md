@@ -47,6 +47,7 @@ Prophet-based per-district rainfall forecasts drive proactive zone risk flags.
 ### Frontend
 - React 18 + Vite
 - Material UI
+- Deck.gl v9 + react-map-gl + MapLibre GL (2D/3D map rendering)
 - React Leaflet (interactive zone map)
 - Recharts
 - Framer Motion
@@ -58,6 +59,9 @@ Prophet-based per-district rainfall forecasts drive proactive zone risk flags.
 - JWT authentication
 - WebSocket event delivery
 - Web Push (pywebpush / VAPID)
+
+Backend data model notes:
+- Prediction/history-heavy collections use Mongo indexes (`risk_predictions`, `blast_events`, `zones`) for faster summary/list reads while preserving full historical records.
 
 ### Machine Learning
 - Python · scikit-learn · XGBoost (zone risk model)
@@ -207,6 +211,23 @@ Map view satellite + 3D terrain tiles read `VITE_MAPTILER_KEY`.
 | GET    | /api/predictions/summary | Fleet summary: risk distribution, average hazard score, model availability |
 | GET    | /api/predictions/zones | Zone-wise prediction rows with hazard score, rainfall 7-day forecast, blast anomaly, factor breakdown (optimized for dashboard loading) |
 | GET    | /api/predictions/zones/{zone_id} | Detailed prediction snapshot for one zone |
+
+Prediction data wiring notes:
+- `predict_zone_risk` resolves `blast_count_7d` and `avg_blast_intensity` from live `BlastEvent` data (last 7 days for the zone) when `zone_id` is provided.
+- Model thresholds and artifact files remain unchanged.
+
+### Field Data Entry
+| Method | Path | Description |
+|--------|------|-------------|
+| POST   | /api/blasts | Submit blast event, run Model 4 anomaly detection, persist anomaly result, and auto-raise alert on warning/critical anomaly |
+| GET    | /api/blasts | List blast events with `zone_id`, `district`, `date_from`, `date_to`, `anomaly_only`, `limit` filters |
+| GET    | /api/blasts/{id} | Blast event detail with anomaly breakdown |
+| POST   | /api/explorations | Submit exploration log, update zone saturation index (when water encountered), and trigger zone-only re-forecast in background |
+| GET    | /api/explorations | List exploration logs with `zone_id`, `district`, `date_from`, `date_to`, `water_only`, `limit` filters |
+| GET    | /api/explorations/{id} | Exploration log detail |
+
+Exploration log compatibility notes:
+- The exploration model keeps legacy fields alongside the new operational fields so existing historical documents remain readable after the schema update.
 
 ### Alerts
 | Method | Path | Description |

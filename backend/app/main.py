@@ -12,6 +12,8 @@ from app.api.routes.alerts        import router as alerts_router
 from app.api.routes.reports       import router as reports_router
 from app.api.routes.crack_reports import router as crack_reports_router
 from app.api.routes.blast_events  import router as blast_events_router
+from app.api.routes.blasts        import router as blasts_router
+from app.api.routes.explorations  import router as explorations_router
 from app.api.routes.weather       import router as weather_router
 from app.api.routes.rainfall      import router as rainfall_router
 from app.api.routes.notifications import router as notifications_router
@@ -87,6 +89,8 @@ app.include_router(alerts_router)
 app.include_router(reports_router)
 app.include_router(crack_reports_router)
 app.include_router(blast_events_router)
+app.include_router(blasts_router)
+app.include_router(explorations_router)
 app.include_router(weather_router)
 app.include_router(rainfall_router)
 app.include_router(notifications_router)

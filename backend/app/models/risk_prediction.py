@@ -13,3 +13,8 @@ class RiskPrediction(Document):
 
     class Settings:
         name = "risk_predictions"
+        indexes = [
+            "zone_id",
+            "predicted_at",
+            [("zone_id", -1), ("predicted_at", -1)],
+        ]

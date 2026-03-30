@@ -13,6 +13,8 @@ const NAV = [
   { label: "Predictions",   icon: "timeline",             to: "/predictions" },
   { label: "IoT Sensors",   icon: "sensors",              to: "/iot-sensors" },
   { label: "Upload",        icon: "upload_file",          to: "/upload" },
+  { label: "Blasts",        icon: "explosion",            to: "/blasts" },
+  { label: "Explorations",  icon: "biotech",              to: "/explorations" },
 ];
 
 export default function SidebarNav() {

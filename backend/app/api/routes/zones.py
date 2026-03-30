@@ -79,7 +79,7 @@ async def get_zone_forecast(
         "rainfall_mm_24h": tomorrow_rain,
         "rainfall_mm_7d": round(tomorrow_rain * 3, 2),
     }
-    prediction = predict_zone_risk(**forecast_features)
+    prediction = await predict_zone_risk(zone_id=str(zone.id), **forecast_features)
 
     return {
         "zone_id": str(zone.id),

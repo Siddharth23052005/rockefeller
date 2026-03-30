@@ -6,8 +6,12 @@ from app.models.zone import Zone
 from app.services.ml_models import get_tomorrow_rainfall, predict_zone_risk
 
 
-async def run_daily_risk_forecast() -> int:
-    zones = await Zone.find().to_list()
+async def run_daily_risk_forecast(zone_id: str | None = None) -> int:
+    if zone_id:
+        zone = await Zone.get(zone_id)
+        zones = [zone] if zone else []
+    else:
+        zones = await Zone.find().to_list()
     written = 0
 
     for zone in zones:
@@ -18,7 +22,7 @@ async def run_daily_risk_forecast() -> int:
             "rainfall_mm_24h": predicted_rain,
             "rainfall_mm_7d": round(predicted_rain * 3, 2),
         }
-        result = predict_zone_risk(**forecast_features)
+        result = await predict_zone_risk(zone_id=str(zone.id), **forecast_features)
 
         prediction = RiskPrediction(
             zone_id=str(zone.id),

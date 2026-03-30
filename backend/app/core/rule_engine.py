@@ -171,7 +171,7 @@ async def run_zone_risk_update(zone_id: str):
     features  = await _get_zone_features(zone)
 
     try:
-        result = predict_zone_risk(**features)
+        result = await predict_zone_risk(zone_id=str(zone.id), **features)
         new_level = str(result["risk_label"])
         new_score = float(result["risk_score"])
     except Exception as e:
