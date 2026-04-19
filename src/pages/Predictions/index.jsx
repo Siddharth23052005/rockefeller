@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Cell,
+} from "recharts";
+import {
   fetchPredictionsSummary,
   fetchZonePredictionDetail,
   fetchZonePredictions,
@@ -11,6 +21,14 @@ const RISK_COLORS = {
   yellow: "#ffeb3b",
   green: "#4edea3",
 };
+
+function rainfallFlag(mm) {
+  const value = Number(mm || 0);
+  if (value >= 65) return "red";
+  if (value >= 35) return "orange";
+  if (value >= 15) return "yellow";
+  return "green";
+}
 
 const cardStyle = {
   background: "#1c1b1b",
@@ -117,6 +135,31 @@ export default function PredictionsPage() {
     () => [...zones].sort((a, b) => (b.hazard_score || 0) - (a.hazard_score || 0)),
     [zones],
   );
+
+  const detailForecast = useMemo(() => {
+    const series = (zoneDetail?.forecast_rainfall_7d_mm || []).map((raw, idx) => {
+      const rainfall = Number(raw || 0);
+      const flag = rainfallFlag(rainfall);
+      return {
+        day: `D${idx + 1}`,
+        rainfall,
+        flag,
+      };
+    });
+
+    const total = series.reduce((sum, row) => sum + row.rainfall, 0);
+    const peak = series.reduce((max, row) => (row.rainfall > max.rainfall ? row : max), {
+      day: "D1",
+      rainfall: 0,
+      flag: "green",
+    });
+
+    return {
+      series,
+      total,
+      peak,
+    };
+  }, [zoneDetail]);
 
   return (
     <div style={{ padding: "28px 28px 72px", fontFamily: "Inter, sans-serif" }}>
@@ -347,27 +390,100 @@ export default function PredictionsPage() {
                 )}
               </div>
 
-              <div>
-                <div style={{ color: "#e5e2e1", fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-                  Rainfall Forecast (7D)
+              <div
+                style={{
+                  marginTop: 6,
+                  padding: 12,
+                  borderRadius: 4,
+                  border: "1px solid rgba(255,179,173,0.2)",
+                  background:
+                    "linear-gradient(180deg, rgba(255,179,173,0.08) 0%, rgba(20,19,19,0.85) 55%, rgba(20,19,19,1) 100%)",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                  <div style={{ color: "#e5e2e1", fontSize: 14, fontWeight: 800 }}>Rainfall Forecast (7D)</div>
+                  <div style={{ fontSize: 11, color: "#e4beba", opacity: 0.8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    Prophet outlook
+                  </div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {(zoneDetail.forecast_rainfall_7d_mm || []).map((val, idx) => (
-                    <span
-                      key={`${zoneDetail.zone_id}-${idx}`}
-                      style={{
-                        fontSize: 11,
-                        color: "#e5e2e1",
-                        background: "#141313",
-                        border: "1px solid rgba(91,64,62,0.25)",
-                        borderRadius: 2,
-                        padding: "5px 8px",
-                      }}
-                    >
-                      D{idx + 1}: {Number(val || 0).toFixed(1)}mm
-                    </span>
-                  ))}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                  <div style={{ background: "#121111", border: "1px solid rgba(91,64,62,0.2)", borderRadius: 4, padding: 9 }}>
+                    <div style={{ fontSize: 10, color: "#e4beba", opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Total 7-Day Rain
+                    </div>
+                    <div style={{ marginTop: 4, color: "#ffb95f", fontSize: 24, fontWeight: 800 }}>
+                      {detailForecast.total.toFixed(1)} mm
+                    </div>
+                  </div>
+                  <div style={{ background: "#121111", border: "1px solid rgba(91,64,62,0.2)", borderRadius: 4, padding: 9 }}>
+                    <div style={{ fontSize: 10, color: "#e4beba", opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                      Peak Day
+                    </div>
+                    <div style={{ marginTop: 4, color: RISK_COLORS[detailForecast.peak.flag], fontSize: 24, fontWeight: 800 }}>
+                      {detailForecast.peak.day} {detailForecast.peak.rainfall.toFixed(1)} mm
+                    </div>
+                  </div>
                 </div>
+
+                {detailForecast.series.length === 0 ? (
+                  <div style={{ color: "#e4beba", opacity: 0.75, fontSize: 13 }}>No rainfall forecast points available.</div>
+                ) : (
+                  <>
+                    <div style={{ height: 210, marginBottom: 10 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={detailForecast.series} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,179,173,0.12)" />
+                          <XAxis dataKey="day" tick={{ fill: "#e4beba", fontSize: 11 }} axisLine={{ stroke: "rgba(255,179,173,0.2)" }} tickLine={{ stroke: "rgba(255,179,173,0.2)" }} />
+                          <YAxis tick={{ fill: "#e4beba", fontSize: 11 }} axisLine={{ stroke: "rgba(255,179,173,0.2)" }} tickLine={{ stroke: "rgba(255,179,173,0.2)" }} />
+                          <Tooltip
+                            cursor={{ fill: "rgba(255,179,173,0.08)" }}
+                            contentStyle={{
+                              background: "#151414",
+                              border: "1px solid rgba(91,64,62,0.35)",
+                              borderRadius: 4,
+                              color: "#e5e2e1",
+                              fontSize: 12,
+                            }}
+                            formatter={(value, _name, payload) => {
+                              const flag = payload?.payload?.flag || "green";
+                              return [`${Number(value).toFixed(1)} mm (${flag.toUpperCase()})`, "Predicted Rain"];
+                            }}
+                          />
+                          <Bar dataKey="rainfall" radius={[3, 3, 0, 0]}>
+                            {detailForecast.series.map((entry) => (
+                              <Cell key={`${entry.day}-${entry.flag}`} fill={RISK_COLORS[entry.flag]} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {Object.entries(RISK_COLORS).map(([flag, color]) => (
+                        <span
+                          key={flag}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "4px 7px",
+                            borderRadius: 2,
+                            fontSize: 11,
+                            color: "#e5e2e1",
+                            background: "#121111",
+                            border: "1px solid rgba(91,64,62,0.25)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          <span style={{ width: 8, height: 8, borderRadius: 1, background: color, display: "inline-block" }} />
+                          {flag}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}

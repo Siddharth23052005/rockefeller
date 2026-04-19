@@ -41,6 +41,15 @@ function fromDatetimeLocal(value) {
   return { blast_date: d || "", blast_time: (t || "").slice(0, 5) };
 }
 
+function getZoneRef(zone) {
+  if (!zone) return "";
+  return String(zone.id || zone._id || zone.name || "");
+}
+
+function isFiniteNumber(value) {
+  return Number.isFinite(value);
+}
+
 export default function BlastsPage() {
   const [zones, setZones] = useState([]);
   const [rows, setRows] = useState([]);
@@ -51,7 +60,7 @@ export default function BlastsPage() {
   const [inlineStatus, setInlineStatus] = useState("");
 
   const selectedZone = useMemo(
-    () => zones.find((z) => z.id === form.zone_id),
+    () => zones.find((z) => getZoneRef(z) === form.zone_id),
     [zones, form.zone_id],
   );
 
@@ -68,9 +77,10 @@ export default function BlastsPage() {
   const load = async (zoneId) => {
     setLoading(true);
     try {
+      const zoneFilter = zoneId && /^[a-f0-9]{24}$/i.test(String(zoneId)) ? zoneId : undefined;
       const [zoneList, blastRows] = await Promise.all([
         zones.length ? Promise.resolve(zones) : fetchZones().catch(() => []),
-        fetchBlasts({ zone_id: zoneId || undefined, limit: 50 }).catch(() => []),
+        fetchBlasts({ zone_id: zoneFilter, limit: 50 }).catch(() => []),
       ]);
       if (!zones.length) setZones(zoneList || []);
       setRows(blastRows || []);
@@ -97,31 +107,58 @@ export default function BlastsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
     setInlineStatus("");
 
+    const zoneRef = form.zone_id || getZoneRef(selectedZone);
+    if (!zoneRef) {
+      setError("Please select a valid zone before saving.");
+      return;
+    }
+
+    const intensity = Number(form.intensity);
+    const depthM = Number(form.depth_m);
+    const blastsPerWeek = Number(form.blasts_per_week);
+    const chargeWeight = form.charge_weight_kg === "" ? null : Number(form.charge_weight_kg);
+
+    if (!isFiniteNumber(intensity) || !isFiniteNumber(depthM) || !isFiniteNumber(blastsPerWeek)) {
+      setError("Please enter valid numeric values for intensity, depth, and blasts/week.");
+      return;
+    }
+
+    if (chargeWeight !== null && !isFiniteNumber(chargeWeight)) {
+      setError("Please enter a valid charge weight.");
+      return;
+    }
+
+    setSubmitting(true);
+
     try {
       const payload = {
-        zone_id: form.zone_id,
+        zone_id: zoneRef,
         blast_date: form.blast_date,
         blast_time: form.blast_time,
-        intensity: Number(form.intensity),
-        depth_m: Number(form.depth_m),
-        blasts_per_week: Number(form.blasts_per_week),
-        charge_weight_kg: form.charge_weight_kg === "" ? null : Number(form.charge_weight_kg),
+        intensity,
+        depth_m: depthM,
+        blasts_per_week: blastsPerWeek,
+        charge_weight_kg: chargeWeight,
         detonator_type: form.detonator_type || null,
         remarks: form.remarks || null,
       };
 
       const res = await createBlast(payload);
-      await load(form.zone_id);
+      await load(zoneRef);
 
       if (res?.is_anomaly) {
         setInlineStatus(`Success: Blast logged. ML anomaly detection triggered in ${res?.zone_name || "selected zone"}.`);
       } else {
         setInlineStatus("Blast logged successfully. No anomaly detected for this event.");
       }
+
+      setForm((prev) => ({
+        ...EMPTY_FORM,
+        zone_id: prev.zone_id,
+      }));
     } catch (err) {
       setError(err?.response?.data?.detail || "Unable to submit blast event.");
     } finally {
@@ -194,7 +231,7 @@ export default function BlastsPage() {
                 >
                   <option value="">Select zone</option>
                   {zones.map((z) => (
-                    <option key={z.id} value={z.id}>{z.name} ({z.district})</option>
+                    <option key={getZoneRef(z)} value={getZoneRef(z)}>{z.name} ({z.district})</option>
                   ))}
                 </select>
               </div>

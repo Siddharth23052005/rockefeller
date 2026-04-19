@@ -123,18 +123,26 @@ export function NotificationProvider({ children }) {
   const { currentUser, token } = useAuth();
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
+  const pollTimerRef = useRef(null);
+  const notificationsRef = useRef([]);
+
+  const userId = currentUser?.id || currentUser?._id || null;
 
   const [notifications, setNotifications] = useState([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [snackbar, setSnackbar] = useState(null);
   const [emergencyModal, setEmergencyModal] = useState(null);
 
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
+
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.is_read).length,
     [notifications]
   );
 
-  const loadNotifications = useCallback(async () => {
+  const syncNotifications = useCallback(async (notifyOnNew = false) => {
     if (!token) {
       setNotifications([]);
       return;
@@ -142,16 +150,42 @@ export function NotificationProvider({ children }) {
 
     try {
       const rows = await fetchNotifications();
-      setNotifications(rows || []);
+      const nextRows = rows || [];
+      const prevIds = new Set((notificationsRef.current || []).map((row) => row.id));
+      const newRows = notifyOnNew ? nextRows.filter((row) => !prevIds.has(row.id)) : [];
+
+      notificationsRef.current = nextRows;
+      setNotifications(nextRows);
+
+      if (newRows.length > 0) {
+        const incoming = newRows[0];
+        setSnackbar({
+          id: incoming.id,
+          title: incoming.title,
+          message: incoming.message,
+          type: incoming.type,
+          zone_id: incoming.zone_id,
+        });
+        playAlertSound(incoming.type || "info");
+        showDesktopNotification(incoming);
+      }
     } catch {
-      setNotifications([]);
+      // Keep last successful state when sync fails.
     }
   }, [token]);
+
+  const loadNotifications = useCallback(async () => {
+    await syncNotifications(false);
+  }, [syncNotifications]);
 
   const closeSocket = useCallback(() => {
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
+    }
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
     if (wsRef.current) {
       // Prevent onclose from scheduling reconnect when we intentionally close.
@@ -162,7 +196,7 @@ export function NotificationProvider({ children }) {
   }, []);
 
   const connectSocket = useCallback(() => {
-    if (!currentUser?.id || !token) return;
+    if (!userId || !token) return;
 
     // Clean old socket (if any) without triggering reconnect loops.
     if (wsRef.current) {
@@ -172,7 +206,7 @@ export function NotificationProvider({ children }) {
     }
 
     const wsBaseUrl = API_BASE_URL.replace(/^http/i, "ws");
-    const ws = new WebSocket(`${wsBaseUrl}/ws/${currentUser.id}?token=${encodeURIComponent(token)}`);
+    const ws = new WebSocket(`${wsBaseUrl}/ws/${userId}?token=${encodeURIComponent(token)}`);
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
@@ -193,11 +227,13 @@ export function NotificationProvider({ children }) {
         if (parsed?.event !== "notification" || !parsed?.notification) return;
 
         const incoming = parsed.notification;
-        setNotifications((prev) => (
-          prev.some((row) => row.id === incoming.id)
+        setNotifications((prev) => {
+          const next = prev.some((row) => row.id === incoming.id)
             ? prev
-            : [incoming, ...prev]
-        ));
+            : [incoming, ...prev];
+          notificationsRef.current = next;
+          return next;
+        });
         setSnackbar({
           id: incoming.id,
           title: incoming.title,
@@ -213,7 +249,7 @@ export function NotificationProvider({ children }) {
     };
 
     ws.onclose = () => {
-      if (!currentUser?.id) return;
+      if (!userId) return;
       if (!reconnectTimerRef.current) {
         reconnectTimerRef.current = setTimeout(() => {
           reconnectTimerRef.current = null;
@@ -221,10 +257,10 @@ export function NotificationProvider({ children }) {
         }, 5000);
       }
     };
-  }, [closeSocket, currentUser?.id, token]);
+  }, [closeSocket, token, userId]);
 
   const registerPush = useCallback(async () => {
-    if (!currentUser?.id || !token) return;
+    if (!userId || !token) return;
     if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
       return;
     }
@@ -237,7 +273,7 @@ export function NotificationProvider({ children }) {
       const key = await getVapidPublicKey();
       if (!key) return;
 
-      const sentStorageKey = `${PUSH_SENT_KEY_PREFIX}:${currentUser.id}`;
+      const sentStorageKey = `${PUSH_SENT_KEY_PREFIX}:${userId}`;
       if (localStorage.getItem(sentStorageKey) === "1") return;
 
       const existing = await swReg.pushManager.getSubscription();
@@ -253,7 +289,7 @@ export function NotificationProvider({ children }) {
     } catch {
       // Push is optional; websocket notifications still work.
     }
-  }, [currentUser?.id, token]);
+  }, [token, userId]);
 
   const markRead = useCallback(async (id) => {
     try {
@@ -278,14 +314,37 @@ export function NotificationProvider({ children }) {
   }, [loadNotifications]);
 
   useEffect(() => {
-    if (!currentUser?.id || !token) {
+    if (!userId || !token) {
       closeSocket();
       return;
     }
     connectSocket();
     registerPush();
     return () => closeSocket();
-  }, [closeSocket, connectSocket, registerPush, currentUser?.id, token]);
+  }, [closeSocket, connectSocket, registerPush, token, userId]);
+
+  useEffect(() => {
+    if (!token || !userId) {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (!pollTimerRef.current) {
+      pollTimerRef.current = setInterval(() => {
+        void syncNotifications(true);
+      }, 12000);
+    }
+
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, [token, userId, syncNotifications]);
 
   const value = useMemo(
     () => ({

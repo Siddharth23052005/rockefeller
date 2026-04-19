@@ -7,6 +7,9 @@ export const fetchZoneSummary = (zoneId) =>
 export const fetchAlertExplanation = (alertId) =>
   api.post(`/api/groq/alerts/${alertId}/explain`).then((response) => response.data);
 
+export const generateCrackRemarksWithGroq = (payload) =>
+  api.post(`/api/groq/crack-remarks`, payload).then((response) => response.data);
+
 export const streamZoneSummary = async (zoneId, onToken, onDone) => {
   const token = localStorage.getItem("token");
   const response = await fetch(

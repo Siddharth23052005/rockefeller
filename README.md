@@ -1,214 +1,153 @@
-# MineSafe AI — Rockefeller Mine Safety Platform
+# MineSafe AI - Rockefeller Mine Safety Platform
 
-AI-powered landslide and rockfall prediction platform for open-pit mines in Maharashtra, India.
+[![Frontend Live](https://img.shields.io/badge/Frontend-Vercel-000000?logo=vercel)](https://rockefeller-jade.vercel.app)
+[![Backend Live](https://img.shields.io/badge/Backend-Railway-0B0D0E?logo=railway)](https://rockefeller-production.up.railway.app)
+[![API Health](https://img.shields.io/badge/API-Health-green)](https://rockefeller-production.up.railway.app/api/health)
 
-The platform helps miners and engineers identify high-risk zones using geospatial data, weather conditions, geological information, and machine learning.
+Production-ready mine safety platform for crack monitoring, zone risk analytics, field reporting, and real-time emergency communication.
 
-The system is designed for daily command center use across three operational roles:
-- Admin
-- Safety Officer
-- Field Worker
+## Live Deployments
 
----
+- Frontend (Vercel): https://rockefeller-jade.vercel.app
+- Backend (Railway): https://rockefeller-production.up.railway.app
+- API Health: https://rockefeller-production.up.railway.app/api/health
 
-## Features
+## What This Platform Does
 
-### 3D Mine Visualisation
-Interactive mine map showing safe and dangerous zones coloured by risk level (green / yellow / orange / red).
+- Predicts landslide and rockfall risk at zone level.
+- Visualizes zone risk on interactive map views.
+- Supports crack reporting with photo evidence and AI-assisted analysis.
+- Sends critical notifications to mapped workers.
+- Tracks blasts, exploration logs, and rainfall forecasts.
+- Provides role-aware workflows for admin, safety officer, and field worker.
 
-### UI Styling
-The interface uses Inter typography with a dark-first monitoring visual style.
+## Key Features
 
-Dashboard layout note:
-- The Dashboard page follows the provided Rockefeller Sentinel HTML layout closely (same box structure and section ordering).
-- Sidebar navigation structure is unchanged.
-- Sidebar navigation is now independently scrollable so Profile and Logout remain accessible when many menu items are present.
-- The existing interactive mine map implementation is preserved and reused inside the redesigned map panel.
-- The in-page dashboard title strip was removed to keep the content canvas clean.
-- Risk Distribution, 7-Day Risk Trend, and Rainfall Snapshot cards are forced to equal heights for consistent rectangles.
-- Subtle staggered entrance animations were added to improve visual polish without changing functionality.
+### Risk Intelligence
+- Multi-factor risk scoring using rainfall, slope, blast activity, and historic patterns.
+- ML-backed prediction flow with fallback strategy for resilience.
+- District rainfall forecasting and proactive risk flags.
 
-Operations pages layout note:
-- Blasts was redesigned to a split command layout (left: new blast entry, right: recent blast telemetry table) inspired by the provided HTML while preserving create/list API behavior.
-- Explorations was redesigned to a split geology-log layout (left: exploration form with water controls, right: recent logs and saturation analysis) while preserving create/list API behavior.
-- Admin was redesigned as a control-center layout with KPI tiles, users management grid, quick actions, security heatmap, 7-day alert volumes, and a recent activity log.
-- Motion polish was added across these pages using subtle fade/rise/pulse animations without changing operational workflows.
-- Admin visual colors are aligned with the same warm dark palette used across Dashboard, Blasts, and Explorations (no standalone blue/cyan theme).
-- The `/admin` route uses the existing shared app shell again (original sidebar and header preserved).
-- Admin page content keeps the control-center sections, and page actions/buttons are wired to clickable interactions.
+### Crack Operations
+- Crack report submission with image upload.
+- AI-assisted technical remark drafting.
+- Crack details now support:
+  - Generate with AI
+  - Generate with Grok
+- Admin verify / safe / reject workflow with notification routing.
 
-### Risk Prediction
-Predicts landslide probability using a weighted-sum formula and an ML model (XGBoost) trained on terrain, rainfall, soil type, blast activity, and historical events.
+### Realtime Communication
+- In-app notifications
+- WebSocket updates
+- Browser push subscriptions
 
-```
-Risk = 0.40 × rainfall  +  0.20 × slope  +  0.15 × soil_factor
-     + 0.15 × blast_activity  +  0.10 × historical_landslides
-
-0 – 0.3  →  Green  (safe)
-0.3 – 0.6  →  Yellow  (moderate)
-0.6 – 1.0  →  Red  (high risk)
-```
-
-### Worker Reporting
-Workers can upload photos of cracks, water seepage, or unstable rock formations.
-Reporting is handled through Crack Reports and Field Report workflows; the dedicated `/upload` page is no longer used.
-
-### Real-Time Alerts
-Alerts users about high-risk zones, heavy rainfall, and blast anomalies via in-app WebSocket and browser push notifications.
-
-### Blast Monitoring
-Logs mining blasts, checks DGMS PPV compliance, detects anomalies, and re-evaluates zone risk automatically.
-
-### District Rainfall Forecast
-Prophet-based per-district rainfall forecasts drive proactive zone risk flags.
-
----
+### Operations Data
+- Blast telemetry and anomaly detection
+- Exploration logs and saturation tracking
+- Dashboard trend panels and operational KPIs
 
 ## Tech Stack
 
 ### Frontend
 - React 18 + Vite
-- Material UI
-- Deck.gl v9 + react-map-gl + MapLibre GL (2D/3D map rendering)
-- React Leaflet (interactive zone map)
-- Recharts
-- Framer Motion
+- Deck.gl + MapLibre + React Leaflet
+- Recharts + Framer Motion
 - Axios
 
 ### Backend
 - FastAPI
-- Beanie ODM + MongoDB
+- MongoDB + Beanie ODM
 - JWT authentication
-- WebSocket event delivery
-- Web Push (pywebpush / VAPID)
+- WebSocket and push notification services
 
-Backend data model notes:
-- Prediction/history-heavy collections use Mongo indexes (`risk_predictions`, `blast_events`, `zones`) for faster summary/list reads while preserving full historical records.
-
-### Machine Learning
-- Python · scikit-learn · XGBoost (zone risk model)
-- Prophet (district rainfall forecast)
-- CNN / Keras (crack image classifier)
-- Isolation Forest (blast anomaly detection)
-
----
+### AI / ML
+- XGBoost (risk model)
+- Prophet (rainfall forecast)
+- Keras CNN (crack image model)
+- Isolation Forest (blast anomaly)
+- Groq LLM integration (drafting and explanation)
 
 ## Architecture
 
+```text
+Frontend (React/Vite)
+        |
+        v
+Backend (FastAPI)
+        |
+        +--> MongoDB (operational data)
+        +--> ML models (risk, crack, forecast, anomaly)
+        +--> Realtime layer (WebSocket + push)
 ```
-React (Vite)  →  FastAPI  →  MongoDB
-                    │
-          ┌─────────┼──────────┐
-          │         │          │
-     ML models   Weather    WebSocket / Push
-   (XGBoost,    (IMD/NDMA    notifications
-    Prophet,     collector)
-    CNN, IForest)
-```
-
----
 
 ## Repository Structure
 
+```text
+src/                  React frontend
+backend/app/          FastAPI routes, models, services
+backend/scripts/      Seed and maintenance scripts
+dataset/              Model data and artifacts
+uploads/              Uploaded media
 ```
-src/          frontend app (React)
-backend/app/  API routes, models, services, realtime logic
-backend/scripts/  seed and utility scripts
-dataset/      model pickle files and training data
-uploads/      report and crack-report media storage
-```
 
----
+## Local Development Setup
 
-## Model Artifacts
-
-`model1_best_phase2.keras` is the crack classifier model.  
-It is intentionally gitignored. Place it at either:
-- `backend/dataset/model1_best_phase2.keras`
-- `dataset/model1_best_phase2.keras`
-
-You can also keep model files completely outside the repository by setting environment variables:
-- `MODEL_ARTIFACTS_DIR` : directory containing `model1_best_phase2.keras`, `model2_model.pkl`, `model2_scaler.pkl`, `model2_encoder.pkl`, and `model4_blast_anomaly.pkl`
-- `CRACK_MODEL_PATH` : optional full file path override for crack model only
-- `CRACK_MODEL_URL` : optional URL for auto-download fallback in deployment
-- `MODEL_CACHE_DIR` : local cache directory used when downloading from `CRACK_MODEL_URL`
-- `MODEL_DOWNLOAD_TIMEOUT_SEC` : download timeout in seconds
-
-Resolution order for crack model loading:
-1. `CRACK_MODEL_PATH` (if set)
-2. `<MODEL_ARTIFACTS_DIR>/model1_best_phase2.keras` (if `MODEL_ARTIFACTS_DIR` set)
-3. `backend/dataset/model1_best_phase2.keras`
-4. `dataset/model1_best_phase2.keras`
-5. Download from `CRACK_MODEL_URL` into `MODEL_CACHE_DIR`
-
-Git safety:
-- Only the crack classifier artifact (`model1_best_phase2.keras`) is ignored by default because of its large size.
-- If any model files were already tracked previously, remove them from git index once with:
-     `git rm --cached <path-to-model-file>`
-
-District rainfall forecast pickles (model3) are resolved from the first existing folder among:
-- `dataset/model3_district_models`
-- `dataset/model 3 district models`
-- `dataset/model 3 distict models`
-
----
-
-## Prerequisites
-
-- Node.js 18 or newer
-- Python 3.10 or newer
-- MongoDB running locally or remotely
-
----
-
-## Quick Start
-
-### 1) Frontend
+## 1) Frontend
 
 ```bash
 npm install
 npm run dev
 ```
 
-Default dev URL: http://localhost:5173
+Frontend dev URL:
+- http://localhost:5173
 
-### 2) Backend
+## 2) Backend
 
 ```bash
 cd backend
 python -m venv env
-source env/bin/activate          # Windows: .\env\Scripts\activate
+# Windows PowerShell
+.\env\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Default API URL: http://localhost:8000
+Backend dev URL:
+- http://127.0.0.1:8000
 
-### 3) Seed database (optional)
+## 3) Optional Seed
 
 ```bash
 cd backend
 python scripts/seed_db.py
 ```
 
----
-
 ## Environment Variables
 
-Create `backend/.env`:
+## Backend (backend/.env)
 
-```
+```env
 MONGODB_URL=mongodb://localhost:27017
 DATABASE_NAME=rockefeller
-SECRET_KEY=changeme
+SECRET_KEY=change_this
 ALGORITHM=HS256
-CORS_ORIGINS=http://localhost:5173,https://rockefeller-production.up.railway.app
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# CORS
+CORS_ORIGINS=http://localhost:5173,https://rockefeller-jade.vercel.app,https://rockefeller-production.up.railway.app
 CORS_ORIGIN_REGEX=^https://([a-z0-9-]+\.)?vercel\.app$
+
+# AI keys
+GROQ_API_KEY=
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.1-pro-preview
+
+# Push notifications
 VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 VAPID_CLAIMS_SUBJECT=mailto:admin@rockefeller.local
+
+# Model paths
 MODEL_ARTIFACTS_DIR=
 CRACK_MODEL_PATH=
 CRACK_MODEL_URL=
@@ -216,7 +155,7 @@ MODEL_CACHE_DIR=runtime_models
 MODEL_DOWNLOAD_TIMEOUT_SEC=30
 ```
 
-Create root `.env` for deployed frontend API base URL:
+## Frontend (root .env for production)
 
 ```env
 VITE_API_URL=https://rockefeller-production.up.railway.app
@@ -224,156 +163,139 @@ VITE_API_FALLBACK_URL=https://rockefeller-production.up.railway.app
 VITE_MAPTILER_KEY=your_maptiler_key
 ```
 
-Create root `.env.local` for local frontend development:
+## Frontend (root .env.local for local dev)
 
 ```env
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://127.0.0.1:8000
 VITE_MAPTILER_KEY=your_maptiler_key
 ```
 
-Frontend API calls read this through `src/config/api.js`.
-Map view satellite + 3D terrain tiles read `VITE_MAPTILER_KEY`.
+## Deployment Guide
 
-Deployment note (Vercel + Railway):
-- Set `VITE_API_URL` in Vercel environment variables to your Railway backend HTTPS URL.
-- Set `CORS_ORIGINS` in Railway to include your exact Vercel production domain.
-- Keep `CORS_ORIGIN_REGEX` enabled for Vercel preview deployments.
+## A) Railway Backend Deployment
 
-Example for this deployment:
-- Vercel frontend: `https://rockefeller-jade.vercel.app`
-- Railway backend: `https://rockefeller-production.up.railway.app`
-- Railway `CORS_ORIGINS`: `http://localhost:5173,https://rockefeller-production.up.railway.app,https://rockefeller-jade.vercel.app`
+Service settings:
+- Root Directory: backend
+- Build Command: pip install -r requirements.txt
+- Start Command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
----
+Required Railway variables:
+- MONGODB_URL
+- DATABASE_NAME
+- SECRET_KEY
+- ALGORITHM
+- CORS_ORIGINS
+- CORS_ORIGIN_REGEX
+- GROQ_API_KEY (if using Grok generation)
 
-## API Reference
+Recommended optional variables:
+- VAPID_PUBLIC_KEY
+- VAPID_PRIVATE_KEY
+- VAPID_CLAIMS_SUBJECT
+- MODEL_ARTIFACTS_DIR or CRACK_MODEL_URL
 
-### Authentication
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | /api/auth/login | Obtain JWT |
-| GET  | /api/auth/me   | Current user |
+After setting variables:
+1. Trigger redeploy in Railway.
+2. Open health endpoint and confirm 200:
+   - https://rockefeller-production.up.railway.app/api/health
 
-### Zones and Risk
-| Method | Path | Description |
-|--------|------|-------------|
-| GET    | /api/zones | List all zones (filterable by district, risk_level, status) |
-| GET    | /api/zones/{id} | Zone detail |
-| GET    | /api/zones/{id}/forecast | Tomorrow's predicted risk |
-| PATCH  | /api/zones/{id} | Update zone (officer / admin) |
-| GET    | /api/risk-levels | Fleet-wide risk level summary + per-zone breakdown |
+## B) Vercel Frontend Deployment
 
-### Predictions
-| Method | Path | Description |
-|--------|------|-------------|
-| GET    | /api/predictions/summary | Fleet summary: risk distribution, average hazard score, model availability |
-| GET    | /api/predictions/zones | Zone-wise prediction rows with hazard score, rainfall 7-day forecast, blast anomaly, factor breakdown (optimized for dashboard loading) |
-| GET    | /api/predictions/zones/{zone_id} | Detailed prediction snapshot for one zone |
+Project settings:
+- Framework preset: Vite
+- Root Directory: rockefeller
+- Build Command: npm run build
+- Output Directory: dist
 
-Prediction data wiring notes:
-- `predict_zone_risk` resolves `blast_count_7d` and `avg_blast_intensity` from live `BlastEvent` data (last 7 days for the zone) when `zone_id` is provided.
-- Model thresholds and artifact files remain unchanged.
+Required Vercel variable:
+- VITE_API_URL=https://rockefeller-production.up.railway.app
 
-### Field Data Entry
-| Method | Path | Description |
-|--------|------|-------------|
-| POST   | /api/blasts | Submit blast event, run Model 4 anomaly detection, persist anomaly result, and auto-raise alert on warning/critical anomaly |
-| GET    | /api/blasts | List blast events with `zone_id`, `district`, `date_from`, `date_to`, `anomaly_only`, `limit` filters |
-| GET    | /api/blasts/{id} | Blast event detail with anomaly breakdown |
-| POST   | /api/explorations | Submit exploration log, update zone saturation index (when water encountered), and trigger zone-only re-forecast in background |
-| GET    | /api/explorations | List exploration logs with `zone_id`, `district`, `date_from`, `date_to`, `water_only`, `limit` filters |
-| GET    | /api/explorations/{id} | Exploration log detail |
+Recommended Vercel variables:
+- VITE_API_FALLBACK_URL=https://rockefeller-production.up.railway.app
+- VITE_MAPTILER_KEY=your_maptiler_key
 
-Exploration log compatibility notes:
-- The exploration model keeps legacy fields alongside the new operational fields so existing historical documents remain readable after the schema update.
+After setting variables:
+1. Redeploy on Vercel.
+2. Verify frontend loads and API calls succeed:
+   - https://rockefeller-jade.vercel.app
 
-### Alerts
-| Method | Path | Description |
-|--------|------|-------------|
-| GET    | /api/alerts | Active / historical alerts |
-| POST   | /api/alerts | Create manual alert (officer) |
-| PATCH  | /api/alerts/{id}/acknowledge | Acknowledge |
-| PATCH  | /api/alerts/{id}/resolve | Resolve (admin only) |
+## CORS Checklist for Vercel + Railway
 
-Frontend role behavior for alerts:
-- Field worker: read-only alerts view (no acknowledge/resolve/emergency controls)
-- Safety officer: acknowledge + emergency controls
-- Admin: acknowledge + resolve + emergency controls
+- CORS_ORIGINS must include your exact production Vercel URL.
+- Keep CORS_ORIGIN_REGEX enabled for preview deployments.
+- Redeploy backend after changing CORS values.
 
-### Reports and Images
-| Method | Path | Description |
-|--------|------|-------------|
-| GET    | /api/reports | Field reports |
-| POST   | /api/reports | Upload field report with photo |
-| POST   | /api/reports/generate-ai-draft | Generate AI draft text for field report form |
-| GET    | /api/reports/{id} | Report detail |
-| GET    | /api/crack-reports | Crack reports |
-| POST   | /api/crack-reports | Submit crack report with `submission_mode=ai` or `submission_mode=admin` |
-| PATCH  | /api/crack-reports/{id}/verify | Verify (admin) |
-| PATCH  | /api/crack-reports/{id}/notify-critical | Send critical crack notification to assigned workers |
-| PATCH  | /api/crack-reports/{id}/reject | Reject (admin) |
+## Post-Deployment Smoke Test
 
-### Blast Events
-| Method | Path | Description |
-|--------|------|-------------|
-| GET    | /api/blast-events | Blast log |
-| POST   | /api/blast-events | Log a blast (triggers PPV check + anomaly detection) |
+1. Open frontend and log in.
+2. Confirm dashboard data loads.
+3. Open Crack Reports and submit one test record.
+4. In crack details, test both tabs:
+   - Generate with AI
+   - Generate with Grok
+5. Confirm report appears in admin view.
+6. Confirm notifications route correctly for critical actions.
 
-### Weather
-| Method | Path | Description |
-|--------|------|-------------|
-| GET    | /api/weather | Weather records |
-| POST   | /api/weather | Ingest weather reading (triggers risk update) |
-| GET    | /api/rainfall/forecast/{district} | District rainfall forecast |
-| GET    | /api/rainfall/zone-risk-flags | Zones flagged by forecast rainfall |
+## API Highlights
 
-### Presence and Emergency
-| Method | Path | Description |
-|--------|------|-------------|
-| PATCH  | /api/presence/me/check-in | Worker check-in |
-| PATCH  | /api/presence/me/check-out | Worker check-out |
-| GET    | /api/presence/headcount | Live headcount |
-| POST   | /api/emergency/broadcast | One-click zone escalation |
+Authentication:
+- POST /api/auth/login
+- GET /api/auth/me
 
-### Notifications
-| Method | Path | Description |
-|--------|------|-------------|
-| GET    | /api/notifications | In-app notifications |
-| PATCH  | /api/notifications/{id}/read | Mark read |
-| PATCH  | /api/notifications/read-all | Mark all read |
-| POST   | /api/push/subscribe | Register push subscription |
-| WS     | /ws/{user_id}?token=\<jwt\> | Realtime event stream |
+Reports:
+- GET /api/reports
+- POST /api/reports
+- POST /api/reports/generate-ai-draft
 
----
+Crack Reports:
+- GET /api/crack-reports
+- POST /api/crack-reports
+- PATCH /api/crack-reports/{id}/verify
+- PATCH /api/crack-reports/{id}/notify-critical
+- PATCH /api/crack-reports/{id}/reject
 
-## Operational Flow
+Groq:
+- POST /api/groq/zones/{zone_id}/summary
+- POST /api/groq/alerts/{alert_id}/explain
+- POST /api/groq/crack-remarks
 
-1. Worker submits crack report with photo.
-2. Crack AI classifier scores the image.
-3. Admin verifies the report.
-4. Backend creates alert and notifies assigned workers via WebSocket and push.
-5. Rule engine re-evaluates zone risk (ML model → simple formula fallback).
-6. Zone map, analytics, and history reflect the latest risk context.
+## How to Show Vercel Link in GitHub
 
----
+If you want the Vercel link to be visible directly in GitHub repository UI:
+
+1. Open your repository on GitHub.
+2. In the right side About panel, click the settings icon.
+3. Add Website URL:
+   - https://rockefeller-jade.vercel.app
+4. Save.
+
+Now the website link appears on the repository sidebar.
+
+Also do these for better visibility:
+- Keep the Live Deployments section at top of README.
+- Keep the Vercel badge (already added).
+- Connect Vercel GitHub integration so each commit shows deployment status checks.
+
+Important note:
+- git remote -v only shows Git remotes (GitHub URL), not hosting URLs.
+- Vercel URL is shown in GitHub About/README/Deployments, not as a Git remote.
 
 ## Troubleshooting
 
-- **Login fails** — confirm backend is running on port 8000 and `SECRET_KEY` matches.
-- **Map is empty** — run `seed_db.py` and verify MongoDB connection.
-- **No push notifications** — check browser permission and VAPID key configuration.
-- **Forecast errors** — verify your district model `.pkl` files exist in one of the supported model3 folders listed in Model Artifacts.
+- Login fails:
+  - Check backend token secret and backend URL in frontend env.
+- Frontend cannot call backend:
+  - Verify CORS_ORIGINS and redeploy backend.
+- Map zones not visible:
+  - Confirm /api/zones returns latlngs data for each zone.
+- Grok generation fails:
+  - Verify GROQ_API_KEY in Railway.
 
----
+## Security Notes
 
-## Future Improvements
-
-- Real-time sensor integration (IoT accelerometers, piezometers)
-- Drone monitoring and satellite imagery analysis
-- Mobile application for field workers
-- Live rainfall simulation overlay
-
----
+- Never commit real API keys.
+- Keep .env and .env.* ignored.
+- Rotate keys immediately if exposed.
 
 ## License
 

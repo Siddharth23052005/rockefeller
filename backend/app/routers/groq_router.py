@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.api.dependencies import get_current_user
 from app.models.alert import Alert
@@ -11,6 +12,7 @@ from app.models.user import User
 from app.models.zone import Zone
 from app.services.groq_service import (
     generate_alert_explanation,
+    generate_crack_remarks,
     generate_risk_summary,
     stream_risk_summary,
 )
@@ -18,6 +20,14 @@ from app.utils.helpers import get_monsoon_flag
 
 
 router = APIRouter(prefix="/api/groq", tags=["Groq AI"])
+
+
+class CrackRemarksRequest(BaseModel):
+    zone_id: str | None = None
+    zone_name: str | None = None
+    crack_type: str | None = None
+    severity: str | None = None
+    observations: str | None = None
 
 
 async def _load_zone_or_404(zone_id: str) -> Zone:
@@ -140,4 +150,35 @@ async def alert_explain(
     return {
         "alert_id": str(alert.id),
         "explanation": explanation,
+    }
+
+
+@router.post("/crack-remarks")
+async def crack_remarks(
+    body: CrackRemarksRequest,
+    current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+
+    zone_name = (body.zone_name or "").strip()
+    if body.zone_id and not zone_name:
+        try:
+            zone = await Zone.get(body.zone_id)
+            if zone:
+                zone_name = zone.name
+        except Exception:
+            zone_name = zone_name
+
+    result = await run_in_threadpool(
+        generate_crack_remarks,
+        zone_name or "Selected Zone",
+        body.crack_type or "other",
+        body.severity or "low",
+        body.observations or "",
+    )
+
+    return {
+        "remarks": result.get("remarks", ""),
+        "source": result.get("source", "fallback"),
+        "note": result.get("note"),
     }

@@ -34,6 +34,7 @@ _MODEL2_YELLOW_THRESHOLD = 0.24
 _MODEL4_CRITICAL_THRESHOLD = -0.15
 
 _models: dict[str, Any] = {}
+_district_prophet_models: dict[str, Any] = {}
 
 
 def _backend_root() -> Path:
@@ -129,11 +130,28 @@ def preload_models() -> None:
         with open(base / "model4_blast_anomaly.pkl", "rb") as f:
             _models["m4"] = pickle.load(f)
 
+    if not _district_prophet_models:
+        model_dir = _model3_dir()
+        if not model_dir.exists():
+            logger.warning("District Prophet model directory not found: %s", model_dir)
+        else:
+            for model_path in model_dir.glob("*.pkl"):
+                try:
+                    with open(model_path, "rb") as f:
+                        _district_prophet_models[model_path.name] = pickle.load(f)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to preload district Prophet model %s: %s",
+                        model_path.name,
+                        exc,
+                    )
+
 
 def model_status() -> dict[str, bool]:
     return {
         "model2_loaded": "m2" in _models,
         "model4_loaded": "m4" in _models,
+        "district_prophet_loaded": bool(_district_prophet_models),
     }
 
 
@@ -233,28 +251,108 @@ def _district_filename(district: str) -> str:
     return f"{district.lower().replace(' ', '_')}.pkl"
 
 
+def _fallback_rainfall_rows(days: int = 30) -> list[dict[str, float | str]]:
+    safe_days = max(1, int(days))
+    start = datetime.utcnow().date()
+    return [
+        {
+            "date": (start + timedelta(days=offset)).isoformat(),
+            "yhat": 0.0,
+            "yhat_lower": 0.0,
+            "yhat_upper": 0.0,
+        }
+        for offset in range(safe_days)
+    ]
+
+
+def _predict_district_rainfall_rows(district: str, days: int = 30) -> list[dict[str, float | str]] | None:
+    district_name = str(district or "").strip()
+    if not district_name:
+        logger.warning("Rainfall forecast requested with empty district; using fallback.")
+        return None
+
+    safe_days = max(1, int(days))
+    model_key = _district_filename(district_name)
+    model = _district_prophet_models.get(model_key)
+
+    if model is None:
+        model_file = _model3_dir() / model_key
+        if not model_file.exists():
+            logger.warning(
+                "No Prophet rainfall model found for district '%s' at %s",
+                district_name,
+                model_file,
+            )
+            return None
+
+        try:
+            with open(model_file, "rb") as f:
+                model = pickle.load(f)
+            _district_prophet_models[model_key] = model
+        except Exception as exc:
+            logger.warning(
+                "Failed loading Prophet rainfall model for district '%s': %s",
+                district_name,
+                exc,
+            )
+            return None
+
+    try:
+        future = model.make_future_dataframe(periods=safe_days)
+        forecast = model.predict(future)
+        rows = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(safe_days)
+    except Exception as exc:
+        logger.warning(
+            "Prophet forecast generation failed for district '%s': %s",
+            district_name,
+            exc,
+        )
+        return None
+
+    normalized: list[dict[str, float | str]] = []
+    for row in rows.itertuples():
+        yhat = max(0.0, float(getattr(row, "yhat", 0.0) or 0.0))
+        yhat_lower = max(0.0, float(getattr(row, "yhat_lower", 0.0) or 0.0))
+        yhat_upper = max(0.0, float(getattr(row, "yhat_upper", 0.0) or 0.0))
+
+        normalized.append(
+            {
+                "date": str(row.ds.date()),
+                "yhat": round(yhat, 2),
+                "yhat_lower": round(yhat_lower, 2),
+                "yhat_upper": round(yhat_upper, 2),
+            }
+        )
+
+    return normalized
+
+
+def get_rainfall_forecast(district: str, days: int = 30) -> list[dict]:
+    rows = _predict_district_rainfall_rows(district=district, days=days)
+    if rows is None:
+        return _fallback_rainfall_rows(days=days)
+    return rows
+
+
 def get_district_forecast(district: str, days_ahead: int = 7) -> dict[str, Any]:
     model_file = _model3_dir() / _district_filename(district)
     if not model_file.exists():
         return {"error": f"No model for district: {district}"}
 
-    with open(model_file, "rb") as f:
-        model = pickle.load(f)
-
-    future = model.make_future_dataframe(periods=days_ahead)
-    forecast = model.predict(future)
-    rows = forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(days_ahead)
+    rows = _predict_district_rainfall_rows(district=district, days=days_ahead)
+    if rows is None:
+        return {"error": f"Unable to generate forecast for district: {district}"}
 
     return {
         "district": district,
         "forecast": [
             {
-                "date": str(row.ds.date()),
-                "rainfall_mm": round(max(0.0, float(row.yhat)), 2),
-                "lower": round(max(0.0, float(row.yhat_lower)), 2),
-                "upper": round(max(0.0, float(row.yhat_upper)), 2),
+                "date": row["date"],
+                "rainfall_mm": row["yhat"],
+                "lower": row["yhat_lower"],
+                "upper": row["yhat_upper"],
             }
-            for row in rows.itertuples()
+            for row in rows
         ],
     }
 

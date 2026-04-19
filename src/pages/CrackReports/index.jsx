@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../api/axios";
 import { fetchZones } from "../../api/zones";
+import { generateCrackRemarksWithGroq } from "../../api/groq";
 import { toMediaUrl } from "@/utils/mediaUrl";
 
 // ── constants ──────────────────────────────────────────────────
@@ -32,6 +33,24 @@ function timeAgo(iso) {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+function buildFallbackRemarkDraft(form) {
+  const zoneLabel = (form.zone_name || "selected zone").trim();
+  const crackLabel = (form.crack_type || "other").replace(/_/g, " ").trim();
+  const severityLabel = (form.severity || "low").toLowerCase();
+  const context = (form.remarks || "").trim();
+
+  const contextSentence = context
+    ? `Field note: ${context.slice(0, 220)}${context.length > 220 ? "..." : ""}`
+    : "Field note: Minimal input was provided during initial reporting.";
+
+  return [
+    `Preliminary inspection in ${zoneLabel} indicates a ${crackLabel} with ${severityLabel} severity.`,
+    contextSentence,
+    "Recommend cordoning the affected span and validating progression with fresh photo evidence.",
+    "Escalate to geotechnical review if crack length, width, or surrounding soil displacement increases.",
+  ].join(" ");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -427,6 +446,9 @@ function FieldWorkerUpload() {
   const [zoneSearch, setZoneSearch] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitMode, setSubmitMode] = useState(null);
+  const [remarksGenMode, setRemarksGenMode] = useState(null);
+  const [remarksGenError, setRemarksGenError] = useState("");
+  const [remarksGenStatus, setRemarksGenStatus] = useState("");
   const [success,    setSuccess]    = useState(false);
   const [submitId,   setSubmitId]   = useState("");
   const [submitMeta, setSubmitMeta] = useState(null);
@@ -506,10 +528,51 @@ function FieldWorkerUpload() {
     }
   };
 
+  const handleGenerateRemarks = async (mode) => {
+    setRemarksGenError("");
+    setRemarksGenStatus("");
+    setRemarksGenMode(mode);
+
+    try {
+      if (mode === "ai") {
+        const draft = buildFallbackRemarkDraft(form);
+        set("remarks", draft);
+        setRemarksGenStatus("AI draft generated from minimal crack details.");
+        return;
+      }
+
+      const payload = {
+        zone_id: form.zone_id || null,
+        zone_name: form.zone_name || null,
+        crack_type: form.crack_type,
+        severity: form.severity,
+        observations: form.remarks || "",
+      };
+      const result = await generateCrackRemarksWithGroq(payload);
+      const nextRemarks = (result?.remarks || "").trim();
+
+      if (!nextRemarks) {
+        throw new Error("No remarks were generated");
+      }
+
+      set("remarks", nextRemarks);
+      const sourceLabel = result?.source === "groq" ? "Grok" : "fallback";
+      setRemarksGenStatus(`${sourceLabel} draft generated successfully.`);
+    } catch (err) {
+      const fallback = buildFallbackRemarkDraft(form);
+      set("remarks", fallback);
+      setRemarksGenError(err?.response?.data?.detail || err?.message || "Unable to generate remarks.");
+      setRemarksGenStatus("Used local AI fallback draft.");
+    } finally {
+      setRemarksGenMode(null);
+    }
+  };
+
   const resetAll = () => {
     setForm({ zone_id:"", zone_name:"", zone_risk:"", crack_type:"tension_crack",
       severity:"low", remarks:"", photo:null, photoPreview:null, coords:null });
     setStep(0); setSuccess(false); setSubmitId(""); setSubmitMeta(null); setSubmitMode(null);
+    setRemarksGenMode(null); setRemarksGenError(""); setRemarksGenStatus("");
   };
 
   const canNext = () => {
@@ -634,7 +697,16 @@ function FieldWorkerUpload() {
                 set("zone_name", z.name);
                 set("zone_risk", z.risk_color ?? "");
               }} />}
-            {step === 1 && <StepDetails form={form} set={set} />}
+            {step === 1 && (
+              <StepDetails
+                form={form}
+                set={set}
+                onGenerateRemarks={handleGenerateRemarks}
+                generatingMode={remarksGenMode}
+                generationError={remarksGenError}
+                generationStatus={remarksGenStatus}
+              />
+            )}
             {step === 2 && <StepMedia form={form} fileRef={fileRef}
               onFile={handlePhoto} onDrop={handleDrop} />}
             {step === 3 && <StepReview form={form} user={currentUser} />}
@@ -968,7 +1040,16 @@ function StepZone({ zones, search, onSearch, selected, onSelect }) {
   );
 }
 
-function StepDetails({ form, set }) {
+function StepDetails({
+  form,
+  set,
+  onGenerateRemarks,
+  generatingMode,
+  generationError,
+  generationStatus,
+}) {
+  const [generatorTab, setGeneratorTab] = useState("ai");
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div>
@@ -1033,8 +1114,75 @@ function StepDetails({ form, set }) {
 
       {/* Remarks */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontSize: 9, fontWeight: 700, color: "#e4beba",
-          textTransform: "uppercase", letterSpacing: "0.15em" }}>Technical Remarks</label>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <label style={{ fontSize: 9, fontWeight: 700, color: "#e4beba",
+            textTransform: "uppercase", letterSpacing: "0.15em" }}>Technical Remarks</label>
+          <span style={{ fontSize: 9, color: "#e4beba", opacity: 0.7,
+            textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            Works with minimal input
+          </span>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+          {[
+            { id: "ai", label: "Generate with AI", icon: "auto_awesome" },
+            { id: "grok", label: "Generate with Grok", icon: "smart_toy" },
+          ].map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setGeneratorTab(opt.id)}
+              type="button"
+              style={{
+                borderRadius: 2,
+                border: generatorTab === opt.id ? "1px solid rgba(255,179,173,0.4)" : "1px solid rgba(91,64,62,0.2)",
+                background: generatorTab === opt.id ? "rgba(255,179,173,0.1)" : "#1c1b1b",
+                color: generatorTab === opt.id ? "#ffb3ad" : "#e4beba",
+                fontSize: 9,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                padding: "8px 10px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>{opt.icon}</span>
+              {opt.label}
+            </button>
+          ))}
+
+          <button
+            onClick={() => onGenerateRemarks(generatorTab)}
+            disabled={!!generatingMode}
+            type="button"
+            style={{
+              marginLeft: "auto",
+              borderRadius: 2,
+              border: "none",
+              background: "linear-gradient(135deg,#4edea3,#00a572)",
+              color: "#002113",
+              fontSize: 9,
+              fontWeight: 900,
+              textTransform: "uppercase",
+              letterSpacing: "0.1em",
+              padding: "8px 12px",
+              cursor: generatingMode ? "wait" : "pointer",
+              opacity: generatingMode ? 0.75 : 1,
+            }}
+          >
+            {generatingMode === generatorTab ? "Generating..." : `Generate ${generatorTab === "ai" ? "AI" : "Grok"}`}
+          </button>
+        </div>
+
+        {generationStatus && (
+          <p style={{ margin: "0 0 4px", fontSize: 10, color: "#4edea3" }}>{generationStatus}</p>
+        )}
+        {generationError && (
+          <p style={{ margin: "0 0 4px", fontSize: 10, color: "#ffb95f" }}>{generationError}</p>
+        )}
+
         <textarea value={form.remarks}
           onChange={e => set("remarks", e.target.value)}
           placeholder="Visible 5m long crack near support pillar 14-A. Soil erosion evident at base…"

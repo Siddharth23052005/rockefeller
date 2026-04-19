@@ -2,12 +2,21 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { fetchDistrictForecast, fetchZoneForecastFlags } from "../../api/rainfall";
+import { fetchZoneForecast } from "../../api/zones";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
 const RISK_CFG = {
   red:    { color: "#ff5451", label: "Critical Risk",  bg: "rgba(255,84,81,0.1)"   },
   orange: { color: "#ffb95f", label: "High Risk",      bg: "rgba(255,185,95,0.1)"  },
   yellow: { color: "#ffeb3b", label: "Moderate Risk",  bg: "rgba(255,235,59,0.08)" },
   green:  { color: "#4edea3", label: "Low Risk",       bg: "rgba(78,222,163,0.1)"  },
+};
+
+const FORECAST_COLORS = {
+  red: "#ff5451",
+  orange: "#ffb95f",
+  yellow: "#ffeb3b",
+  green: "#4edea3",
 };
 
 function timeAgo(iso) {
@@ -31,6 +40,7 @@ export default function ZoneDetails() {
   const [weather,    setWeather]   = useState([]);
   const [forecast7d, setForecast7d] = useState([]);
   const [forecastFlag, setForecastFlag] = useState(null);
+  const [zoneForecast, setZoneForecast] = useState(null);
   const [loading,    setLoading]   = useState(true);
   const [mounted,    setMounted]   = useState(false);
   const [tab,        setTab]       = useState(0);
@@ -44,19 +54,21 @@ export default function ZoneDetails() {
     if (!id) return;
     setLoading(true);
     try {
-      const [{ data: z }, { data: al }, { data: bl }, { data: cr }, { data: wx }] =
+      const [{ data: z }, { data: al }, { data: bl }, { data: cr }, { data: wx }, zoneForecastPayload] =
         await Promise.all([
           api.get(`/api/zones/${id}`),
           api.get(`/api/alerts?zone_id=${id}`).catch(() => ({ data: [] })),
           api.get(`/api/blast-events?zone_id=${id}`).catch(() => ({ data: [] })),
           api.get(`/api/crack-reports?zone_id=${id}`).catch(() => ({ data: [] })),
           api.get(`/api/weather?district=${encodeURIComponent("all")}`).catch(() => ({ data: [] })),
+          fetchZoneForecast(id).catch(() => null),
         ]);
       setZone(z);
       setAlerts(al ?? []);
       setBlasts(bl ?? []);
       setCracks(cr ?? []);
       setWeather(wx ?? []);
+      setZoneForecast(zoneForecastPayload ?? null);
 
       if (z?.district) {
         try {
@@ -75,7 +87,10 @@ export default function ZoneDetails() {
         setForecast7d([]);
         setForecastFlag(null);
       }
-    } catch { setZone(null); }
+    } catch {
+      setZone(null);
+      setZoneForecast(null);
+    }
     finally { setLoading(false); }
   }, [id]);
 
@@ -186,6 +201,15 @@ export default function ZoneDetails() {
   const cfg   = RISK_CFG[zone.risk_level] ?? RISK_CFG.green;
   const score = Math.round((zone.risk_score ?? 0) * 100);
   const isCrit = zone.risk_level === "red" || zone.risk_level === "orange";
+  const forecastRows = Array.isArray(zoneForecast?.forecast) ? zoneForecast.forecast.slice(0, 30) : [];
+  const forecastChartData = forecastRows.map((row) => ({
+    date: new Date(row.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+    fullDate: row.date,
+    predicted: Number(row.predicted_rainfall_mm ?? 0),
+    lower: Number(row.lower_bound_mm ?? 0),
+    upper: Number(row.upper_bound_mm ?? 0),
+    risk_flag: row.risk_flag || "green",
+  }));
 
   return (
     <div style={{
@@ -604,6 +628,72 @@ export default function ZoneDetails() {
                   </div>
                 )))}
               </div>
+            </div>
+
+            <div style={{
+              marginBottom: 24,
+              padding: 16,
+              borderRadius: 4,
+              border: "1px solid rgba(91,64,62,0.15)",
+              background: "#181818",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                <h4 style={{ margin: 0, fontSize: 12, color: "#e5e2e1", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  30-Day Zone Forecast
+                </h4>
+                <span style={{ fontSize: 10, color: "#e4beba", opacity: 0.6 }}>
+                  Source: Prophet district model
+                </span>
+              </div>
+
+              {forecastChartData.length === 0 ? (
+                <p style={{ margin: 0, color: "#e4beba", opacity: 0.55, fontSize: 11 }}>
+                  Forecast data is currently unavailable.
+                </p>
+              ) : (
+                <>
+                  <div style={{ height: 250 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={forecastChartData} margin={{ top: 8, right: 12, left: 0, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(228,190,186,0.12)" />
+                        <XAxis dataKey="date" tick={{ fill: "#e4beba", fontSize: 10 }} interval={4} />
+                        <YAxis tick={{ fill: "#e4beba", fontSize: 10 }} />
+                        <Tooltip
+                          contentStyle={{
+                            background: "#1f1e1e",
+                            border: "1px solid rgba(91,64,62,0.3)",
+                            borderRadius: 4,
+                            color: "#e5e2e1",
+                          }}
+                          formatter={(value, name, props) => {
+                            if (name === "predicted") return [`${Number(value).toFixed(2)} mm`, "Predicted"];
+                            return [value, name];
+                          }}
+                          labelFormatter={(label, payload) => {
+                            const p = payload?.[0]?.payload;
+                            if (!p) return label;
+                            return `${p.fullDate} • ${String(p.risk_flag || "green").toUpperCase()}`;
+                          }}
+                        />
+                        <Bar dataKey="predicted" radius={[2, 2, 0, 0]}>
+                          {forecastChartData.map((entry, index) => (
+                            <Cell key={`${entry.fullDate}-${index}`} fill={FORECAST_COLORS[entry.risk_flag] || FORECAST_COLORS.green} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+                    {Object.entries(FORECAST_COLORS).map(([risk, color]) => (
+                      <span key={risk} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 10, color: "#e4beba", opacity: 0.9 }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />
+                        {risk.toUpperCase()}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Bar chart */}

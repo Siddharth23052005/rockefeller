@@ -1,13 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+import os
 from app.models.zone import Zone
 from app.schemas.zone import ZoneUpdateRequest
 from app.api.dependencies import get_current_user, require_officer
 from app.models.user import User
 from app.models.history import HistoricalLandslide
-from app.core.rule_engine import get_zone_features, simple_risk_score
-from app.services.ml_models import get_tomorrow_rainfall, predict_zone_risk
+from app.core.rule_engine import simple_risk_score
+from app.services.ml_models import get_rainfall_forecast
 from app.utils.helpers import normalize_probability_score
 
 router = APIRouter(prefix="/api/zones", tags=["zones"])
@@ -56,6 +57,26 @@ def zone_to_dict(z: Zone) -> dict:
         "created_at": z.created_at.isoformat() if z.created_at else None,
     }
 
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return default
+
+
+def _forecast_risk_flag(predicted_rainfall_mm: float, yellow: float, orange: float, red: float) -> str:
+    if predicted_rainfall_mm >= red:
+        return "red"
+    if predicted_rainfall_mm >= orange:
+        return "orange"
+    if predicted_rainfall_mm >= yellow:
+        return "yellow"
+    return "green"
+
 # ✅ All logged-in users can view zones
 @router.get("")
 async def get_zones(
@@ -95,26 +116,52 @@ async def get_zone_forecast(
     if not zone:
         raise HTTPException(status_code=404, detail="Zone not found")
 
-    base_features = await get_zone_features(zone)
-    tomorrow_rain = get_tomorrow_rainfall(zone.district)
+    district = str(zone.district or "").strip()
+    yellow_threshold = _float_env("FORECAST_RAIN_YELLOW_THRESHOLD_MM", 15.0)
+    orange_threshold = _float_env("FORECAST_RAIN_ORANGE_THRESHOLD_MM", 35.0)
+    red_threshold = _float_env("FORECAST_RAIN_RED_THRESHOLD_MM", 65.0)
 
-    forecast_features = {
-        **base_features,
-        "rainfall_mm_24h": tomorrow_rain,
-        "rainfall_mm_7d": round(tomorrow_rain * 3, 2),
-    }
-    prediction = await predict_zone_risk(zone_id=str(zone.id), zone_name=zone.name, **forecast_features)
-    predicted_score = normalize_probability_score(prediction["risk_score"])
+    rows = get_rainfall_forecast(district=district, days=30)
+    forecast: list[dict] = []
+    for row in rows[:30]:
+        predicted = max(0.0, float(row.get("yhat", 0.0) or 0.0))
+        lower = max(0.0, float(row.get("yhat_lower", 0.0) or 0.0))
+        upper = max(0.0, float(row.get("yhat_upper", 0.0) or 0.0))
+
+        forecast.append(
+            {
+                "date": str(row.get("date")),
+                "predicted_rainfall_mm": round(predicted, 2),
+                "lower_bound_mm": round(lower, 2),
+                "upper_bound_mm": round(upper, 2),
+                "risk_flag": _forecast_risk_flag(
+                    predicted,
+                    yellow=yellow_threshold,
+                    orange=orange_threshold,
+                    red=red_threshold,
+                ),
+            }
+        )
+
+    if len(forecast) < 30:
+        start = datetime.now(timezone.utc).date()
+        for offset in range(len(forecast), 30):
+            forecast.append(
+                {
+                    "date": (start + timedelta(days=offset)).isoformat(),
+                    "predicted_rainfall_mm": 0.0,
+                    "lower_bound_mm": 0.0,
+                    "upper_bound_mm": 0.0,
+                    "risk_flag": "green",
+                }
+            )
 
     return {
         "zone_id": str(zone.id),
         "zone_name": zone.name,
         "district": zone.district,
-        "prediction_horizon": "tomorrow",
-        "predicted_rainfall_mm_24h": tomorrow_rain,
-        "predicted_risk_label": prediction["risk_label"],
-        "predicted_risk_score": predicted_score,
-        "features_used": forecast_features,
+        "forecast": forecast[:30],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 # 🔒 Only safety_officer / admin can edit zones
